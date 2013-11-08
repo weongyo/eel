@@ -5,8 +5,12 @@ AM_INIT_AUTOMAKE([foreign])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_MACRO_DIR([m4])
 AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_LIBTOOL
+AC_PROG_MAKE_SET
 AC_CONFIG_FILES([
     Makefile
+    src/Makefile
     vendor/Makefile
 ])
 AC_CONFIG_SUBDIRS([

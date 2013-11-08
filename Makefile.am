@@ -1,2 +1,2 @@
 
-SUBDIRS = vendor
+SUBDIRS = vendor src
