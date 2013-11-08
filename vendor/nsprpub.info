@@ -1,0 +1,7 @@
+This NSPR version is checkouted from
+
+  cvs -q -d :pserver:anonymous@cvs-mirror.mozilla.org:/cvsroot export \
+      -r NSPR_4_8_RTM mozilla/nsprpub
+
+Regards,
+Weongyo Jeong

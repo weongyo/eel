@@ -11,6 +11,7 @@ AC_CONFIG_FILES([
 ])
 AC_CONFIG_SUBDIRS([
     vendor/gumbo-parser
-    vendor/mozjs17.0.0/js/src/
+    vendor/nsprpub
+    vendor/mozjs17.0.0/js/src
 ])
 AC_OUTPUT
