@@ -14,6 +14,7 @@ AC_CONFIG_FILES([
     vendor/Makefile
 ])
 AC_CONFIG_SUBDIRS([
+    vendor/curl-7.33.0
     vendor/gumbo-parser
     vendor/nsprpub
     vendor/mozjs17.0.0/js/src
