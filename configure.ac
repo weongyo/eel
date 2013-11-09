@@ -11,11 +11,5 @@ AC_PROG_MAKE_SET
 AC_CONFIG_FILES([
     Makefile
     src/Makefile
-    vendor/Makefile
-])
-AC_CONFIG_SUBDIRS([
-    vendor/gumbo-parser
-    vendor/nsprpub
-    vendor/mozjs17.0.0/js/src
 ])
 AC_OUTPUT
