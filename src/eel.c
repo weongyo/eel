@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <curl/curl.h>
 #include <openssl/crypto.h>
@@ -12,7 +13,7 @@
 static pthread_rwlock_t *rwlocks;
 
 static void
-lock_callback(int mode, int type, char *file, int line)
+lock_callback(int mode, int type, const char *file, int line)
 {
 	int ret;
 
@@ -57,16 +58,19 @@ init_locks(void)
 	AN(rwlocks);
 	for (i = 0; i < CRYPTO_num_locks(); i++)
 		pthread_rwlock_init(&(rwlocks[i]),NULL);
-	CRYPTO_set_id_callback((unsigned long (*)())thread_id);
-	CRYPTO_set_locking_callback((void (*)())lock_callback);
+	CRYPTO_set_id_callback(thread_id);
+	CRYPTO_set_locking_callback(lock_callback);
 }
 
 static void *
 core_main(void *arg)
 {
 
+	(void)arg;
+
 	while (1)
 		sleep(1);
+	return (NULL);
 }
 
 int
@@ -84,4 +88,5 @@ main(void)
 	}
 	while (1)
 		sleep(1);
+	return (0);
 }
