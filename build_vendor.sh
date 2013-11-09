@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export PREFIX=/opt/eel-1.0.0
+export PREFIX=/opt/eel/1.0.0
 
 cd vendor/c-ares-1.10.0 && ./configure --prefix=$PREFIX && \
     make && make install
