@@ -1,7 +1,9 @@
+#include <sys/epoll.h>
 #include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <curl/curl.h>
@@ -10,14 +12,26 @@
 
 #include "callout.h"
 
+#define	EPOLLEVENT_MAX	(4 * 1024)
 #define	AZ(foo)		do { assert((foo) == 0); } while (0)
 #define	AN(foo)		do { assert((foo) != 0); } while (0)
+
+struct worker;
+
+struct sess {
+	unsigned		magic;
+#define	SESS_MAGIC		0xb733fc97
+	unsigned		flags;
+#define	SESS_F_ONEPOLL		(1 << 0)	/* On epoll */
+	curl_socket_t		fd;
+	struct worker		*wrk;
+};
 
 struct worker {
 	unsigned		magic;
 #define	WORKER_MAGIC		0x44505226
+	int			efd;
 	CURLM			*curlm;
-	long			curlm_maxtimo;
 	struct callout		co_timo;
 	struct callout_block	cb;
 };
@@ -96,43 +110,110 @@ start_timeout(CURLM *cm, long timeout_ms, void *userp)
 
 	if (timeout_ms <= 0)
 		timeout_ms = 1;
-	wrk->curlm_maxtimo = timeout_ms;
-	callout_reset(&wrk->cb, &wrk->co_timo,
-	    CALLOUT_MSTOTICKS(wrk->curlm_maxtimo), on_timeout, wrk);
+	callout_reset(&wrk->cb, &wrk->co_timo, CALLOUT_MSTOTICKS(timeout_ms),
+	    on_timeout, wrk);
+}
+
+static void
+SES_eventadd(struct sess *sp)
+{
+	struct epoll_event ev;
+	int ret;
+
+	bzero(&ev, sizeof(ev));
+	ev.events = EPOLLERR | EPOLLET | EPOLLIN | EPOLLPRI | EPOLLOUT;
+	ev.data.ptr = sp;
+	ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
+	assert(ret == 0);
+}
+
+static struct sess *
+SES_alloc(struct worker *wrk, CURL *c, curl_socket_t fd)
+{
+	struct sess *sp;
+
+	(void)c;
+
+	sp = calloc(1, sizeof(*sp));
+	assert(sp != NULL);
+	sp->magic = SESS_MAGIC;
+	sp->fd = fd;
+	sp->wrk = wrk;
+	return (sp);
+}
+
+static void
+SES_free(struct sess *sp)
+{
+
+	free(sp);
 }
 
 static int
-handle_socket(CURL *c, curl_socket_t s, int action, void *userp,
+handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
     void *socketp)
 {
+	struct sess *sp;
+	struct worker *wrk = (struct worker *)userp;
 
-	(void)c;
-	(void)s;
-	(void)action;
-	(void)userp;
-	(void)socketp;
-	assert(0 == 1);
-	return (-1);
+	if (action == CURL_POLL_IN || action == CURL_POLL_OUT) {
+		if (socketp != NULL)
+			sp = (struct sess *)socketp;
+		else {
+			sp = SES_alloc(wrk, c, fd);
+			AN(sp);
+			curl_multi_assign(wrk->curlm, fd, (void *)sp);
+		}
+	}
+	switch (action) {
+	case CURL_POLL_IN:
+	case CURL_POLL_OUT:
+		if ((sp->flags & SESS_F_ONEPOLL) == 0) {
+			SES_eventadd(sp);
+			sp->flags |= SESS_F_ONEPOLL;
+		}
+		break;
+	case CURL_POLL_REMOVE:
+		if (socketp != NULL) {
+			sp = (struct sess *)socketp;
+			SES_free(sp);
+			curl_multi_assign(wrk->curlm, fd, NULL);
+		}
+		break;
+	default:
+		assert(0 == 1);
+	}
+	return (0);
 }
 
 static void *
 core_main(void *arg)
 {
+	struct epoll_event ev[EPOLLEVENT_MAX], *ep;
+	struct sess *sp;
 	struct worker wrk;
 	CURL *c;
 	CURLM *cm;
 	CURLMcode code;
+	CURLMsg *msg;
+	int i, n;
+	int pending;
+	int running_handles;
 
 	(void)arg;
 
 	bzero(&wrk, sizeof(wrk));
 	wrk.magic = WORKER_MAGIC;
+	wrk.efd = epoll_create(1);
+	assert(wrk.efd >= 0);
 	COT_init(&wrk.cb);
 	callout_init(&wrk.co_timo, 0);
 
 	cm = curl_multi_init();
 	AN(cm);
 	code = curl_multi_setopt(cm, CURLMOPT_SOCKETFUNCTION, handle_socket);
+	assert(code == CURLM_OK);
+	code = curl_multi_setopt(cm, CURLMOPT_SOCKETDATA, &wrk);
 	assert(code == CURLM_OK);
 	code = curl_multi_setopt(cm, CURLMOPT_TIMERFUNCTION, start_timeout);
 	assert(code == CURLM_OK);
@@ -142,13 +223,38 @@ core_main(void *arg)
 
 	c = curl_easy_init();
 	AN(c);
-	curl_easy_setopt(c, CURLOPT_URL, "http://www.test.com");
+	curl_easy_setopt(c, CURLOPT_URL, "http://ko.loxch.com");
 	curl_multi_add_handle(cm, c);
 
 	while (1) {
 		COT_ticks(&wrk.cb);
 		COT_clock(&wrk.cb);
-		usleep(wrk.curlm_maxtimo * 1000);
+		n = epoll_wait(wrk.efd, ev, EPOLLEVENT_MAX, 1000);
+		for (ep = ev, i = 0; i < n; i++, ep++) {
+			sp = (struct sess *)ep->data.ptr;
+			AN(sp);
+
+			code = curl_multi_socket_action(wrk.curlm, sp->fd,
+			    0, &running_handles);
+			assert(code == CURLM_OK);
+		}
+		while ((msg = curl_multi_info_read(wrk.curlm, &pending))) {
+			char *done_url;
+
+			switch (msg->msg) {
+			case CURLMSG_DONE:
+				curl_easy_getinfo(msg->easy_handle,
+				    CURLINFO_EFFECTIVE_URL, &done_url);
+				printf("%s DONE\n", done_url);
+				curl_multi_remove_handle(wrk.curlm,
+				    msg->easy_handle);
+				curl_easy_cleanup(msg->easy_handle);
+				break;
+			default:
+				assert(0 == 1);
+				break;
+			}
+		}
 	}
 	return (NULL);
 }
