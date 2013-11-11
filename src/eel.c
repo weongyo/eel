@@ -196,6 +196,7 @@ core_main(void *arg)
 	CURLM *cm;
 	CURLMcode code;
 	CURLMsg *msg;
+	FILE *fp;
 	int i, n;
 	int pending;
 	int running_handles;
@@ -223,7 +224,18 @@ core_main(void *arg)
 
 	c = curl_easy_init();
 	AN(c);
+	fp = fopen("/dev/null", "w");
+	AN(fp);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
 	curl_easy_setopt(c, CURLOPT_URL, "http://ko.loxch.com");
+	curl_multi_add_handle(cm, c);
+
+	c = curl_easy_init();
+	AN(c);
+	fp = fopen("/dev/null", "w");
+	AN(fp);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
+	curl_easy_setopt(c, CURLOPT_URL, "http://www.yahoo.com");
 	curl_multi_add_handle(cm, c);
 
 	while (1) {
