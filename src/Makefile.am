@@ -2,6 +2,7 @@
 bin_PROGRAMS = eel
 
 eel_SOURCES = \
+	callout.c \
 	eel.c
 
 eel_CFLAGS = -I$(prefix)/include \

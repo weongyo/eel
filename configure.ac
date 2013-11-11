@@ -9,6 +9,12 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 AC_PROG_MAKE_SET
+
+# --enable-debugging-symbols
+AC_ARG_ENABLE(debugging-symbols,
+	AS_HELP_STRING([--enable-debugging-symbols],[enable debugging symbols (default is NO)]),
+	CFLAGS="${CFLAGS} -O0 -g -fno-inline")
+
 AC_CONFIG_FILES([
     Makefile
     src/Makefile
