@@ -64,13 +64,8 @@ __FBSDID("$FreeBSD: head/sys/kern/subr_vsb.c 222004 2011-05-17 06:36:32Z phk $")
 
 #define	VSB_MINEXTENDSIZE	16		/* Should be power of 2. */
 
-#ifdef PAGE_SIZE
-#define	VSB_MAXEXTENDSIZE	PAGE_SIZE
-#define	VSB_MAXEXTENDINCR	PAGE_SIZE
-#else
 #define	VSB_MAXEXTENDSIZE	32768
 #define	VSB_MAXEXTENDINCR	32768
-#endif
 
 /*
  * Debugging support
