@@ -11,6 +11,7 @@
 #include <openssl/err.h>
 
 #include "callout.h"
+#include "vsb.h"
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
 #define	AZ(foo)		do { assert((foo) == 0); } while (0)
@@ -21,8 +22,6 @@ struct worker;
 struct sess {
 	unsigned		magic;
 #define	SESS_MAGIC		0xb733fc97
-	unsigned		flags;
-#define	SESS_F_ONEPOLL		(1 << 0)	/* On epoll */
 	curl_socket_t		fd;
 	struct worker		*wrk;
 };
@@ -115,15 +114,26 @@ start_timeout(CURLM *cm, long timeout_ms, void *userp)
 }
 
 static void
-SES_eventadd(struct sess *sp)
+SES_eventadd(struct sess *sp, int want)
 {
 	struct epoll_event ev;
 	int ret;
 
 	bzero(&ev, sizeof(ev));
-	ev.events = EPOLLERR | EPOLLET | EPOLLIN | EPOLLPRI | EPOLLOUT;
+	ev.events = EPOLLERR;
+	if (want == 1)
+		ev.events |= EPOLLIN | EPOLLPRI;
+	else if (want == 2)
+		ev.events |= EPOLLOUT;
+	else
+		assert(0 == 1);
 	ev.data.ptr = sp;
 	ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
+	if (ret == -1) {
+		if (errno == EEXIST)
+			ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_MOD, sp->fd,
+			    &ev);
+	}
 	assert(ret == 0);
 }
 
@@ -167,11 +177,10 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	}
 	switch (action) {
 	case CURL_POLL_IN:
+		SES_eventadd(sp, 1);
+		break;
 	case CURL_POLL_OUT:
-		if ((sp->flags & SESS_F_ONEPOLL) == 0) {
-			SES_eventadd(sp);
-			sp->flags |= SESS_F_ONEPOLL;
-		}
+		SES_eventadd(sp, 2);
 		break;
 	case CURL_POLL_REMOVE:
 		if (socketp != NULL) {
@@ -186,6 +195,18 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	return (0);
 }
 
+static size_t
+writebody(void *contents, size_t size, size_t nmemb, void *userp)
+{
+	struct vsb *vsb = (struct vsb *)userp;
+	size_t len = size * nmemb;
+	int ret;
+
+	ret = VSB_bcat(vsb, contents, len);
+	AZ(ret);
+	return (len);
+}
+
 static void *
 core_main(void *arg)
 {
@@ -193,10 +214,10 @@ core_main(void *arg)
 	struct sess *sp;
 	struct worker wrk;
 	CURL *c;
+	CURLcode code;
 	CURLM *cm;
 	CURLMcode mcode;
 	CURLMsg *msg;
-	FILE *fp;
 	int i, n;
 	int pending;
 	int running_handles;
@@ -224,19 +245,26 @@ core_main(void *arg)
 
 	c = curl_easy_init();
 	AN(c);
-	fp = fopen("/dev/null", "w");
-	AN(fp);
-	curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
-	curl_easy_setopt(c, CURLOPT_URL, "https://www.google.com");
+	code = curl_easy_setopt(c, CURLOPT_URL, "https://www.google.com");
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, writebody);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(c, CURLOPT_WRITEDATA, (void *)VSB_new_auto());
+	code = curl_easy_setopt(c, CURLOPT_ACCEPT_ENCODING, "deflate");
+	assert(code == CURLE_OK);
 	curl_multi_add_handle(cm, c);
 
+#if 0
 	c = curl_easy_init();
 	AN(c);
 	fp = fopen("/dev/null", "w");
 	AN(fp);
-	curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
-	curl_easy_setopt(c, CURLOPT_URL, "http://www.yahoo.com");
+	code = curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(c, CURLOPT_URL, "http://www.yahoo.com");
+	assert(code == CURLE_OK);
 	curl_multi_add_handle(cm, c);
+#endif
 
 	while (1) {
 		COT_ticks(&wrk.cb);
