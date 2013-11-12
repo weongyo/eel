@@ -194,7 +194,7 @@ core_main(void *arg)
 	struct worker wrk;
 	CURL *c;
 	CURLM *cm;
-	CURLMcode code;
+	CURLMcode mcode;
 	CURLMsg *msg;
 	FILE *fp;
 	int i, n;
@@ -212,14 +212,14 @@ core_main(void *arg)
 
 	cm = curl_multi_init();
 	AN(cm);
-	code = curl_multi_setopt(cm, CURLMOPT_SOCKETFUNCTION, handle_socket);
-	assert(code == CURLM_OK);
-	code = curl_multi_setopt(cm, CURLMOPT_SOCKETDATA, &wrk);
-	assert(code == CURLM_OK);
-	code = curl_multi_setopt(cm, CURLMOPT_TIMERFUNCTION, start_timeout);
-	assert(code == CURLM_OK);
-	code = curl_multi_setopt(cm, CURLMOPT_TIMERDATA, &wrk);
-	assert(code == CURLM_OK);
+	mcode = curl_multi_setopt(cm, CURLMOPT_SOCKETFUNCTION, handle_socket);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(cm, CURLMOPT_SOCKETDATA, &wrk);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(cm, CURLMOPT_TIMERFUNCTION, start_timeout);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(cm, CURLMOPT_TIMERDATA, &wrk);
+	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
 	c = curl_easy_init();
@@ -227,7 +227,7 @@ core_main(void *arg)
 	fp = fopen("/dev/null", "w");
 	AN(fp);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
-	curl_easy_setopt(c, CURLOPT_URL, "http://ko.loxch.com");
+	curl_easy_setopt(c, CURLOPT_URL, "https://www.google.com");
 	curl_multi_add_handle(cm, c);
 
 	c = curl_easy_init();
@@ -246,9 +246,9 @@ core_main(void *arg)
 			sp = (struct sess *)ep->data.ptr;
 			AN(sp);
 
-			code = curl_multi_socket_action(wrk.curlm, sp->fd,
+			mcode = curl_multi_socket_action(wrk.curlm, sp->fd,
 			    0, &running_handles);
-			assert(code == CURLM_OK);
+			assert(mcode == CURLM_OK);
 		}
 		while ((msg = curl_multi_info_read(wrk.curlm, &pending))) {
 			char *done_url;
