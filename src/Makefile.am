@@ -14,4 +14,4 @@ eel_CFLAGS = -I$(prefix)/include \
 
 eel_LDFLAGS = -L$(prefix)/lib
 
-eel_LDADD = -lcurl
+eel_LDADD = -lcurl -lgumbo

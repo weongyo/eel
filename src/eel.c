@@ -11,6 +11,7 @@
 #include <openssl/err.h>
 
 #include "callout.h"
+#include "gumbo.h"
 #include "vsb.h"
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
@@ -262,6 +263,38 @@ REQ_free(struct req *req)
 	free(req);
 }
 
+static void
+search_for_links(GumboNode* node)
+{
+	GumboAttribute *href;
+	GumboVector *children;
+	int i;
+
+	if (node->type != GUMBO_NODE_ELEMENT)
+		return;
+	if (node->v.element.tag == GUMBO_TAG_A &&
+	    (href = gumbo_get_attribute(&node->v.element.attributes, "href")))
+		printf("HREF = %s\n", href->value);
+
+	children = &node->v.element.children;
+	for (i = 0; i < children->length; ++i)
+		search_for_links((GumboNode *)children->data[i]);
+}
+
+static void
+REQ_main(struct req *req)
+{
+	struct vsb *vsb = req->vsb;
+	GumboOutput* output;
+
+	VSB_finish(vsb);
+	output = gumbo_parse_with_options(&kGumboDefaultOptions, VSB_data(vsb),
+	    VSB_len(vsb));
+	AN(output);
+	search_for_links(output->root);
+	gumbo_destroy_output(&kGumboDefaultOptions, output);
+}
+
 static void *
 core_main(void *arg)
 {
@@ -298,7 +331,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_new(&wrk, "https://www.google.coms");
+	REQ_new(&wrk, "https://www.google.com");
 
 	while (1) {
 		COT_ticks(&wrk.cb);
@@ -322,6 +355,7 @@ core_main(void *arg)
 				curl_easy_getinfo(msg->easy_handle,
 				    CURLINFO_PRIVATE, &req);
 				assert(msg->easy_handle == req->c);
+				REQ_main(req);
 				printf("%s DONE (req %p)\n", done_url, req);
 				REQ_free(req);
 				break;
