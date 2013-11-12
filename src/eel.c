@@ -26,11 +26,21 @@ struct sess {
 	struct worker		*wrk;
 };
 
+struct req {
+	unsigned		magic;
+#define	REQ_MAGIC		0x9ba52f21
+	CURL			*c;
+	struct vsb		*vsb;
+	struct worker		*wrk;
+	VTAILQ_ENTRY(req)	list;
+};
+
 struct worker {
 	unsigned		magic;
 #define	WORKER_MAGIC		0x44505226
 	int			efd;
 	CURLM			*curlm;
+	VTAILQ_HEAD(, req)	reqhead;
 	struct callout		co_timo;
 	struct callout_block	cb;
 };
@@ -198,23 +208,67 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 static size_t
 writebody(void *contents, size_t size, size_t nmemb, void *userp)
 {
-	struct vsb *vsb = (struct vsb *)userp;
+	struct req *req = (struct req *)userp;
 	size_t len = size * nmemb;
 	int ret;
 
-	ret = VSB_bcat(vsb, contents, len);
+	ret = VSB_bcat(req->vsb, contents, len);
 	AZ(ret);
 	return (len);
+}
+
+static void
+REQ_new(struct worker *wrk, const char *url)
+{
+	struct req *req;
+	CURLcode code;
+	CURLMcode mcode;
+
+	req = calloc(sizeof(*req), 1);
+	AN(req);
+	req->magic = REQ_MAGIC;
+	req->wrk = wrk;
+	req->vsb = VSB_new_auto();
+	req->c = curl_easy_init();
+	AN(req->c);
+	code = curl_easy_setopt(req->c, CURLOPT_URL, url);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, writebody);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_WRITEDATA, (void *)req);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_ACCEPT_ENCODING, "deflate");
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_PRIVATE, req);
+	assert(code == CURLE_OK);
+
+	VTAILQ_INSERT_TAIL(&wrk->reqhead, req, list);
+	mcode = curl_multi_add_handle(wrk->curlm, req->c);
+	assert(mcode == CURLM_OK);
+}
+
+static void
+REQ_free(struct req *req)
+{
+	struct worker *wrk = req->wrk;
+
+	assert(wrk->magic == WORKER_MAGIC);
+
+	curl_multi_remove_handle(wrk->curlm, req->c);
+	VTAILQ_REMOVE(&wrk->reqhead, req, list);
+
+	curl_easy_cleanup(req->c);
+	VSB_delete(req->vsb);
+	free(req);
 }
 
 static void *
 core_main(void *arg)
 {
 	struct epoll_event ev[EPOLLEVENT_MAX], *ep;
+	struct req *req;
 	struct sess *sp;
 	struct worker wrk;
-	CURL *c;
-	CURLcode code;
 	CURLM *cm;
 	CURLMcode mcode;
 	CURLMsg *msg;
@@ -228,6 +282,7 @@ core_main(void *arg)
 	wrk.magic = WORKER_MAGIC;
 	wrk.efd = epoll_create(1);
 	assert(wrk.efd >= 0);
+	VTAILQ_INIT(&wrk.reqhead);
 	COT_init(&wrk.cb);
 	callout_init(&wrk.co_timo, 0);
 
@@ -243,28 +298,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	c = curl_easy_init();
-	AN(c);
-	code = curl_easy_setopt(c, CURLOPT_URL, "https://www.google.com");
-	assert(code == CURLE_OK);
-	code = curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, writebody);
-	assert(code == CURLE_OK);
-	code = curl_easy_setopt(c, CURLOPT_WRITEDATA, (void *)VSB_new_auto());
-	code = curl_easy_setopt(c, CURLOPT_ACCEPT_ENCODING, "deflate");
-	assert(code == CURLE_OK);
-	curl_multi_add_handle(cm, c);
-
-#if 0
-	c = curl_easy_init();
-	AN(c);
-	fp = fopen("/dev/null", "w");
-	AN(fp);
-	code = curl_easy_setopt(c, CURLOPT_WRITEDATA, fp);
-	assert(code == CURLE_OK);
-	code = curl_easy_setopt(c, CURLOPT_URL, "http://www.yahoo.com");
-	assert(code == CURLE_OK);
-	curl_multi_add_handle(cm, c);
-#endif
+	REQ_new(&wrk, "https://www.google.coms");
 
 	while (1) {
 		COT_ticks(&wrk.cb);
@@ -285,10 +319,11 @@ core_main(void *arg)
 			case CURLMSG_DONE:
 				curl_easy_getinfo(msg->easy_handle,
 				    CURLINFO_EFFECTIVE_URL, &done_url);
-				printf("%s DONE\n", done_url);
-				curl_multi_remove_handle(wrk.curlm,
-				    msg->easy_handle);
-				curl_easy_cleanup(msg->easy_handle);
+				curl_easy_getinfo(msg->easy_handle,
+				    CURLINFO_PRIVATE, &req);
+				assert(msg->easy_handle == req->c);
+				printf("%s DONE (req %p)\n", done_url, req);
+				REQ_free(req);
 				break;
 			default:
 				assert(0 == 1);
