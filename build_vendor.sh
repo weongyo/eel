@@ -15,6 +15,10 @@ cd vendor/gumbo-parser && ./configure --prefix=$PREFIX \
     --enable-debug --disable-optimize && make && make install
 cd ../../
 
+cd vendor/uriparser-0.7.9 && ./configure --prefix=$PREFIX \
+    --disable-test --disable-doc && make && make install
+cd ../../
+
 cd vendor/nspr && ./configure --prefix=$PREFIX \
     --enable-debug --disable-optimize --enable-64bit && make && make install
 cd ../../
