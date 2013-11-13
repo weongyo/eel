@@ -6,9 +6,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <curl/curl.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
+
+#include "curl/curl.h"
+#include "uriparser/Uri.h"
 
 #include "callout.h"
 #include "gumbo.h"
@@ -30,6 +32,7 @@ struct sess {
 struct req {
 	unsigned		magic;
 #define	REQ_MAGIC		0x9ba52f21
+	char			*url;
 	CURL			*c;
 	struct vsb		*vsb;
 	struct worker		*wrk;
@@ -229,6 +232,8 @@ REQ_new(struct worker *wrk, const char *url)
 	req = calloc(sizeof(*req), 1);
 	AN(req);
 	req->magic = REQ_MAGIC;
+	req->url = strdup(url);
+	AN(req->url);
 	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
 	VTAILQ_INIT(&req->subreqs);
@@ -262,7 +267,63 @@ REQ_free(struct req *req)
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
+	free(req->url);
 	free(req);
+}
+
+static void
+urlnorm(struct req *req, const char *value)
+{
+	UriParserStateA state;
+	UriUriA absoluteBase;
+	UriUriA absoluteDest;
+	UriUriA relativeSource;
+	int charsRequired;
+
+	/*
+	 * XXX Don't need to parse everytime.
+	 */
+	state.uri = &absoluteBase;
+	if (uriParseUriA(&state, req->url) != URI_SUCCESS) {
+		printf("Failed to parse URL %s\n", req->url);
+		goto fail0;
+	}
+	state.uri = &relativeSource;
+	if (uriParseUriA(&state, value) != URI_SUCCESS) {
+		printf("Failed to parse URL %s\n", value);
+		goto fail1;
+	}
+	if (uriAddBaseUriA(&absoluteDest, &relativeSource, &absoluteBase) !=
+	    URI_SUCCESS) {
+		printf("Failed to call uriAddBaseUriA().\n");
+		goto fail2;
+	}
+	if (uriNormalizeSyntaxA(&absoluteDest) != URI_SUCCESS) {
+		printf("Failed to call uriNormalizeSyntaxA().\n");
+		goto fail2;
+	}
+	charsRequired = -1;
+	if (uriToStringCharsRequiredA(&absoluteDest, &charsRequired) !=
+	    URI_SUCCESS) {
+		printf("Failed to call uriToStringCharsRequiredA().\n");
+		goto fail2;
+	}
+	{
+		char uriString[charsRequired + 1];
+
+		if (uriToStringA(uriString, &absoluteDest, sizeof(uriString),
+		    NULL) != URI_SUCCESS) {
+			printf("Failed to call uriToStringA().\n");
+			goto fail2;
+		}
+		printf("Result %s\n", uriString);
+	}
+fail2:
+	uriFreeUriMembersA(&absoluteDest);
+fail1:
+	uriFreeUriMembersA(&relativeSource);
+fail0:
+	uriFreeUriMembersA(&absoluteBase);
 }
 
 static void
@@ -285,6 +346,7 @@ search_for_links(struct req *req, GumboNode* node)
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
 		if (src != NULL) {
 			printf("SCRIPT SRC = %s\n", src->value);
+			urlnorm(req, src->value);
 			break;
 		}
 		if (node->v.element.children.length != 1) {
