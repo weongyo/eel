@@ -149,11 +149,9 @@ SES_eventadd(struct sess *sp, int want)
 }
 
 static struct sess *
-SES_alloc(struct worker *wrk, CURL *c, curl_socket_t fd)
+SES_alloc(struct worker *wrk, curl_socket_t fd)
 {
 	struct sess *sp;
-
-	(void)c;
 
 	sp = calloc(1, sizeof(*sp));
 	assert(sp != NULL);
@@ -177,11 +175,13 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	struct sess *sp;
 	struct worker *wrk = (struct worker *)userp;
 
+	(void)c;
+
 	if (action == CURL_POLL_IN || action == CURL_POLL_OUT) {
 		if (socketp != NULL)
 			sp = (struct sess *)socketp;
 		else {
-			sp = SES_alloc(wrk, c, fd);
+			sp = SES_alloc(wrk, fd);
 			AN(sp);
 			curl_multi_assign(wrk->curlm, fd, (void *)sp);
 		}
