@@ -33,6 +33,7 @@ struct req {
 	CURL			*c;
 	struct vsb		*vsb;
 	struct worker		*wrk;
+	VTAILQ_HEAD(, req)	subreqs;
 	VTAILQ_ENTRY(req)	list;
 };
 
@@ -230,6 +231,7 @@ REQ_new(struct worker *wrk, const char *url)
 	req->magic = REQ_MAGIC;
 	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
+	VTAILQ_INIT(&req->subreqs);
 	req->c = curl_easy_init();
 	AN(req->c);
 	code = curl_easy_setopt(req->c, CURLOPT_URL, url);
@@ -264,7 +266,7 @@ REQ_free(struct req *req)
 }
 
 static void
-search_for_links(GumboNode* node)
+search_for_links(struct req *req, GumboNode* node)
 {
 	GumboAttribute *href, *src;
 	GumboNode *text;
@@ -306,7 +308,7 @@ search_for_links(GumboNode* node)
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i)
-		search_for_links((GumboNode *)children->data[i]);
+		search_for_links(req, (GumboNode *)children->data[i]);
 }
 
 static void
@@ -319,7 +321,7 @@ REQ_main(struct req *req)
 	output = gumbo_parse_with_options(&kGumboDefaultOptions, VSB_data(vsb),
 	    VSB_len(vsb));
 	AN(output);
-	search_for_links(output->root);
+	search_for_links(req, output->root);
 	gumbo_destroy_output(&kGumboDefaultOptions, output);
 }
 
