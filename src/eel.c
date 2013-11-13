@@ -266,15 +266,43 @@ REQ_free(struct req *req)
 static void
 search_for_links(GumboNode* node)
 {
-	GumboAttribute *href;
+	GumboAttribute *href, *src;
+	GumboNode *text;
 	GumboVector *children;
 	int i;
 
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
-	if (node->v.element.tag == GUMBO_TAG_A &&
-	    (href = gumbo_get_attribute(&node->v.element.attributes, "href")))
-		printf("HREF = %s\n", href->value);
+	switch (node->v.element.tag) {
+	case GUMBO_TAG_A:
+		href = gumbo_get_attribute(&node->v.element.attributes, "href");
+		if (href != NULL)
+			printf("A HREF = %s\n", href->value);
+		break;
+	case GUMBO_TAG_SCRIPT:
+		src = gumbo_get_attribute(&node->v.element.attributes, "src");
+		if (src != NULL) {
+			printf("SCRIPT SRC = %s\n", src->value);
+			break;
+		}
+		if (node->v.element.children.length != 1) {
+			printf("SCRIPT EMPTY\n");
+			break;
+		}
+		text = node->v.element.children.data[0];
+		switch (text->type) {
+		case GUMBO_NODE_TEXT:
+			printf("SCRIPT BODY { %s }\n", text->v.text.text);
+			break;
+		case GUMBO_NODE_WHITESPACE:
+			break;
+		default:
+			printf("Unexpected type %d\n", text->type);
+			assert(0 == 1);
+		}
+	default:
+		break;
+	}
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i)
@@ -331,7 +359,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_new(&wrk, "https://www.google.com");
+	REQ_new(&wrk, "https://kldp.org");
 
 	while (1) {
 		COT_ticks(&wrk.cb);
