@@ -172,9 +172,24 @@ EJS_free(void *arg)
 {
 	struct ejs_private *ep = (struct ejs_private *)arg;
 
+	assert(ep->magic == EJS_PRIVATE_MAGIC);
+
 	JS_DestroyContext(ep->cx);
 	JS_DestroyRuntime(ep->rt);
 	free(ep);
+}
+
+void
+EJS_eval(void *arg, const char *src, ssize_t len)
+{
+	struct ejs_private *ep = (struct ejs_private *)arg;
+	JSBool ret;
+	jsval rval;
+
+	ret = JS_EvaluateScript(ep->cx, ep->global, src, len, "script", 1,
+	    &rval);
+	if (ret != JS_TRUE)
+		fprintf(stderr, "JS_EvaluateScript() error.\n");
 }
 
 int

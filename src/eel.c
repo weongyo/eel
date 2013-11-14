@@ -512,11 +512,26 @@ REQ_final(struct req *req)
 {
 	struct req *subreq;
 	struct script *scr;
+	const char *ptr;
 
 	printf("FINAL (req %p)\n", req);
 
+	AN(req->scriptpriv);
+
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
 		printf("SCRIPT %d\n", scr->type);
+		if (scr->type == SCRIPT_T_REQ) {
+			const struct req *tmp;
+
+			tmp = (const struct req *)scr->priv;
+			assert(tmp->magic == REQ_MAGIC);
+			EJS_eval(req->scriptpriv, VSB_data(tmp->vsb),
+			    VSB_len(tmp->vsb));
+		} else if (scr->type == SCRIPT_T_BUFFER) {
+			ptr = (const char *)scr->priv;
+			EJS_eval(req->scriptpriv, ptr, strlen(ptr));
+		} else
+			assert(0 == 1);
 	}
 
 	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list)

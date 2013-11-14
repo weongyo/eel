@@ -14,8 +14,9 @@ AC_PROG_MAKE_SET
 
 # --enable-debugging-symbols
 AC_ARG_ENABLE(debugging-symbols,
-	AS_HELP_STRING([--enable-debugging-symbols],[enable debugging symbols (default is NO)]),
-	CFLAGS="${CFLAGS} -O0 -g -fno-inline")
+	AS_HELP_STRING([--enable-debugging-symbols],[enable debugging symbols (default is NO)]), [
+	CFLAGS="${CFLAGS} -O0 -g -fno-inline"
+	CXXFLAGS="${CXXFLAGS} -O0 -g -fno-inline" ])
 
 AC_CONFIG_FILES([
     Makefile
