@@ -16,6 +16,9 @@ static int64_t gWatchdogTimeout = 0;
 
 static PRCondVar *gSleepWakeup = NULL;
 
+/*
+ * This variable is shared by multiple threads.
+ */
 static JSRuntime *gRuntime = NULL;
 
 static bool
