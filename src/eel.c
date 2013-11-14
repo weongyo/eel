@@ -1,3 +1,4 @@
+#include "config.h"
 #include <sys/epoll.h>
 #include <assert.h>
 #include <errno.h>
@@ -29,6 +30,16 @@ struct sess {
 	struct worker		*wrk;
 };
 
+struct script {
+	unsigned		magic;
+#define	SCRIPT_MAGIC		0x2b4bf359
+	unsigned		type;
+#define	SCRIPT_T_REQ		1
+#define	SCRIPT_T_BUFFER		2
+	void			*priv;
+	VTAILQ_ENTRY(script)	list;
+};
+
 struct req {
 	unsigned		magic;
 #define	REQ_MAGIC		0x9ba52f21
@@ -36,8 +47,13 @@ struct req {
 	CURL			*c;
 	struct vsb		*vsb;
 	struct worker		*wrk;
-	VTAILQ_HEAD(, req)	subreqs;
 	VTAILQ_ENTRY(req)	list;
+
+	struct req		*parent;
+	int			subreqs_count;
+	int			subreqs_onqueue;
+	VTAILQ_HEAD(, req)	subreqs;
+	VTAILQ_ENTRY(req)	subreqs_list;
 };
 
 struct worker {
@@ -222,8 +238,8 @@ writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	return (len);
 }
 
-static void
-REQ_new(struct worker *wrk, const char *url)
+static struct req *
+REQ_new(struct worker *wrk, struct req *parent, const char *url)
 {
 	struct req *req;
 	CURLcode code;
@@ -236,6 +252,7 @@ REQ_new(struct worker *wrk, const char *url)
 	AN(req->url);
 	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
+	req->parent = parent;
 	VTAILQ_INIT(&req->subreqs);
 	req->c = curl_easy_init();
 	AN(req->c);
@@ -253,6 +270,27 @@ REQ_new(struct worker *wrk, const char *url)
 	VTAILQ_INSERT_TAIL(&wrk->reqhead, req, list);
 	mcode = curl_multi_add_handle(wrk->curlm, req->c);
 	assert(mcode == CURLM_OK);
+
+	return (req);
+}
+
+static void
+REQ_newroot(struct worker *wrk, const char *url)
+{
+
+	(void)REQ_new(wrk, NULL, url);
+}
+
+static void
+REQ_newchild(struct req *parent, const char *url)
+{
+	struct req *req;
+
+	req = REQ_new(parent->wrk, parent, url);
+	AN(req);
+	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
+	parent->subreqs_onqueue++;
+	parent->subreqs_count++;
 }
 
 static void
@@ -271,14 +309,15 @@ REQ_free(struct req *req)
 	free(req);
 }
 
-static void
-urlnorm(struct req *req, const char *value)
+static int
+urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 {
 	UriParserStateA state;
 	UriUriA absoluteBase;
 	UriUriA absoluteDest;
 	UriUriA relativeSource;
 	int charsRequired;
+	int error = 0;
 
 	/*
 	 * XXX Don't need to parse everytime.
@@ -286,37 +325,42 @@ urlnorm(struct req *req, const char *value)
 	state.uri = &absoluteBase;
 	if (uriParseUriA(&state, req->url) != URI_SUCCESS) {
 		printf("Failed to parse URL %s\n", req->url);
+		error = -1;
 		goto fail0;
 	}
 	state.uri = &relativeSource;
 	if (uriParseUriA(&state, value) != URI_SUCCESS) {
 		printf("Failed to parse URL %s\n", value);
+		error = -1;
 		goto fail1;
 	}
 	if (uriAddBaseUriA(&absoluteDest, &relativeSource, &absoluteBase) !=
 	    URI_SUCCESS) {
 		printf("Failed to call uriAddBaseUriA().\n");
+		error = -1;
 		goto fail2;
 	}
 	if (uriNormalizeSyntaxA(&absoluteDest) != URI_SUCCESS) {
 		printf("Failed to call uriNormalizeSyntaxA().\n");
+		error = -1;
 		goto fail2;
 	}
 	charsRequired = -1;
 	if (uriToStringCharsRequiredA(&absoluteDest, &charsRequired) !=
 	    URI_SUCCESS) {
 		printf("Failed to call uriToStringCharsRequiredA().\n");
+		error = -1;
 		goto fail2;
 	}
 	{
-		char uriString[charsRequired + 1];
+		assert(charsRequired + 1 <= urlbuflen);
 
-		if (uriToStringA(uriString, &absoluteDest, sizeof(uriString),
-		    NULL) != URI_SUCCESS) {
+		if (uriToStringA(urlbuf, &absoluteDest, urlbuflen, NULL) !=
+		    URI_SUCCESS) {
 			printf("Failed to call uriToStringA().\n");
+			error = -1;
 			goto fail2;
 		}
-		printf("Result %s\n", uriString);
 	}
 fail2:
 	uriFreeUriMembersA(&absoluteDest);
@@ -324,6 +368,7 @@ fail1:
 	uriFreeUriMembersA(&relativeSource);
 fail0:
 	uriFreeUriMembersA(&absoluteBase);
+	return (error);
 }
 
 static void
@@ -332,7 +377,8 @@ search_for_links(struct req *req, GumboNode* node)
 	GumboAttribute *href, *src;
 	GumboNode *text;
 	GumboVector *children;
-	int i;
+	int i, ret;
+	char urlbuf[BUFSIZ];
 
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
@@ -346,7 +392,12 @@ search_for_links(struct req *req, GumboNode* node)
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
 		if (src != NULL) {
 			printf("SCRIPT SRC = %s\n", src->value);
-			urlnorm(req, src->value);
+			ret = urlnorm(req, src->value, urlbuf, sizeof(urlbuf));
+			if (ret == -1) {
+				printf("Failed to normalize URL.\n");
+				break;
+			}
+			REQ_newchild(req, urlbuf);
 			break;
 		}
 		if (node->v.element.children.length != 1) {
@@ -377,23 +428,46 @@ static void
 REQ_main(struct req *req)
 {
 	struct vsb *vsb = req->vsb;
+	CURLcode code;
 	GumboOutput* output;
+	char *content_type;
 
 	VSB_finish(vsb);
-	output = gumbo_parse_with_options(&kGumboDefaultOptions, VSB_data(vsb),
-	    VSB_len(vsb));
-	AN(output);
-	search_for_links(req, output->root);
-	gumbo_destroy_output(&kGumboDefaultOptions, output);
+
+	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
+	assert(code == CURLE_OK);
+	printf("content-type %s\n", content_type);
+
+	if (strcasestr(content_type, "text/html")) {
+		output = gumbo_parse_with_options(&kGumboDefaultOptions,
+		    VSB_data(vsb), VSB_len(vsb));
+		AN(output);
+		search_for_links(req, output->root);
+		gumbo_destroy_output(&kGumboDefaultOptions, output);
+	} else {
+		printf("Skipped.\n");
+	}
+}
+
+static void
+REQ_final(struct req *req)
+{
+	struct req *subreq;
+
+	printf("FINAL (req %p)\n", req);
+	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list)
+		REQ_free(subreq);
+	REQ_free(req);
 }
 
 static void *
 core_main(void *arg)
 {
 	struct epoll_event ev[EPOLLEVENT_MAX], *ep;
-	struct req *req;
+	struct req *parent, *req;
 	struct sess *sp;
 	struct worker wrk;
+	CURLcode code;
 	CURLM *cm;
 	CURLMcode mcode;
 	CURLMsg *msg;
@@ -423,7 +497,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_new(&wrk, "https://kldp.org");
+	REQ_newroot(&wrk, "https://kldp.org");
 
 	while (1) {
 		COT_ticks(&wrk.cb);
@@ -442,14 +516,24 @@ core_main(void *arg)
 
 			switch (msg->msg) {
 			case CURLMSG_DONE:
-				curl_easy_getinfo(msg->easy_handle,
+				code = curl_easy_getinfo(msg->easy_handle,
 				    CURLINFO_EFFECTIVE_URL, &done_url);
-				curl_easy_getinfo(msg->easy_handle,
+				assert(code == CURLE_OK);
+				code = curl_easy_getinfo(msg->easy_handle,
 				    CURLINFO_PRIVATE, &req);
+				assert(code == CURLE_OK);
 				assert(msg->easy_handle == req->c);
 				REQ_main(req);
 				printf("%s DONE (req %p)\n", done_url, req);
-				REQ_free(req);
+				if (req->parent != NULL) {
+					parent = req->parent;
+					parent->subreqs_onqueue--;
+					if (parent->subreqs_onqueue == 0)
+						REQ_final(parent);
+				} else {
+					if (req->subreqs_onqueue == 0)
+						REQ_free(req);
+				}
 				break;
 			default:
 				assert(0 == 1);
