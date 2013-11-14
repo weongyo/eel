@@ -36,7 +36,7 @@ struct script {
 	unsigned		type;
 #define	SCRIPT_T_REQ		1
 #define	SCRIPT_T_BUFFER		2
-	void			*priv;
+	const void		*priv;
 	VTAILQ_ENTRY(script)	list;
 };
 
@@ -57,6 +57,8 @@ struct req {
 	int			subreqs_onqueue;
 	VTAILQ_HEAD(, req)	subreqs;
 	VTAILQ_ENTRY(req)	subreqs_list;
+
+	VTAILQ_HEAD(, script)	scripthead;
 };
 
 struct worker {
@@ -241,6 +243,41 @@ writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	return (len);
 }
 
+static void
+SCR_newreq(struct req *req, struct req *newone)
+{
+	struct script *scr;
+
+	scr = calloc(sizeof(*scr), 1);
+	AN(scr);
+	scr->magic = SCRIPT_MAGIC;
+	scr->type = SCRIPT_T_REQ;
+	scr->priv = newone;
+
+	VTAILQ_INSERT_TAIL(&req->scripthead, scr, list);
+}
+
+static void
+SCR_newbuffer(struct req *req, const char *buf)
+{
+	struct script *scr;
+
+	scr = calloc(sizeof(*scr), 1);
+	AN(scr);
+	scr->magic = SCRIPT_MAGIC;
+	scr->type = SCRIPT_T_BUFFER;
+	scr->priv = buf;
+
+	VTAILQ_INSERT_TAIL(&req->scripthead, scr, list);
+}
+
+static void
+SCR_free(struct script *scr)
+{
+
+	free(scr);
+}
+
 static struct req *
 REQ_new(struct worker *wrk, struct req *parent, const char *url)
 {
@@ -257,6 +294,7 @@ REQ_new(struct worker *wrk, struct req *parent, const char *url)
 	req->vsb = VSB_new_auto();
 	req->parent = parent;
 	VTAILQ_INIT(&req->subreqs);
+	VTAILQ_INIT(&req->scripthead);
 	req->c = curl_easy_init();
 	AN(req->c);
 	code = curl_easy_setopt(req->c, CURLOPT_URL, url);
@@ -284,7 +322,7 @@ REQ_newroot(struct worker *wrk, const char *url)
 	(void)REQ_new(wrk, NULL, url);
 }
 
-static void
+static struct req *
 REQ_newchild(struct req *parent, const char *url)
 {
 	struct req *req;
@@ -294,17 +332,22 @@ REQ_newchild(struct req *parent, const char *url)
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
 	parent->subreqs_count++;
+
+	return (req);
 }
 
 static void
 REQ_free(struct req *req)
 {
+	struct script *scr;
 	struct worker *wrk = req->wrk;
 
 	assert(wrk->magic == WORKER_MAGIC);
 
 	if (req->goutput != NULL)
 		gumbo_destroy_output(req->goptions, req->goutput);
+	VTAILQ_FOREACH(scr, &req->scripthead, list)
+		SCR_free(scr);
 
 	curl_multi_remove_handle(wrk->curlm, req->c);
 	VTAILQ_REMOVE(&wrk->reqhead, req, list);
@@ -380,6 +423,7 @@ fail0:
 static void
 search_for_links(struct req *req, GumboNode* node)
 {
+	struct req *child;
 	GumboAttribute *href, *src;
 	GumboNode *text;
 	GumboVector *children;
@@ -403,7 +447,9 @@ search_for_links(struct req *req, GumboNode* node)
 				printf("Failed to normalize URL.\n");
 				break;
 			}
-			REQ_newchild(req, urlbuf);
+			child = REQ_newchild(req, urlbuf);
+			if (child != NULL)
+				SCR_newreq(req, child);
 			break;
 		}
 		if (node->v.element.children.length != 1) {
@@ -414,6 +460,7 @@ search_for_links(struct req *req, GumboNode* node)
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
 			printf("SCRIPT BODY { %s }\n", text->v.text.text);
+			SCR_newbuffer(req, text->v.text.text);
 			break;
 		case GUMBO_NODE_WHITESPACE:
 			break;
@@ -458,8 +505,14 @@ static void
 REQ_final(struct req *req)
 {
 	struct req *subreq;
+	struct script *scr;
 
 	printf("FINAL (req %p)\n", req);
+
+	VTAILQ_FOREACH(scr, &req->scripthead, list) {
+		printf("SCRIPT %d\n", scr->type);
+	}
+
 	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list)
 		REQ_free(subreq);
 	REQ_free(req);
