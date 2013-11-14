@@ -49,6 +49,9 @@ struct req {
 	struct worker		*wrk;
 	VTAILQ_ENTRY(req)	list;
 
+	GumboOutput		*goutput;
+	const GumboOptions	*goptions;
+
 	struct req		*parent;
 	int			subreqs_count;
 	int			subreqs_onqueue;
@@ -300,6 +303,9 @@ REQ_free(struct req *req)
 
 	assert(wrk->magic == WORKER_MAGIC);
 
+	if (req->goutput != NULL)
+		gumbo_destroy_output(req->goptions, req->goutput);
+
 	curl_multi_remove_handle(wrk->curlm, req->c);
 	VTAILQ_REMOVE(&wrk->reqhead, req, list);
 
@@ -429,7 +435,6 @@ REQ_main(struct req *req)
 {
 	struct vsb *vsb = req->vsb;
 	CURLcode code;
-	GumboOutput* output;
 	char *content_type;
 
 	VSB_finish(vsb);
@@ -439,11 +444,11 @@ REQ_main(struct req *req)
 	printf("content-type %s\n", content_type);
 
 	if (strcasestr(content_type, "text/html")) {
-		output = gumbo_parse_with_options(&kGumboDefaultOptions,
+		req->goptions = &kGumboDefaultOptions;
+		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));
-		AN(output);
-		search_for_links(req, output->root);
-		gumbo_destroy_output(&kGumboDefaultOptions, output);
+		AN(req->goutput);
+		search_for_links(req, req->goutput->root);
 	} else {
 		printf("Skipped.\n");
 	}
