@@ -10,6 +10,8 @@ extern "C" {
 
 /* eel_js.cc */
 int	EJS_init(void);
+void *	EJS_new(void);
+void	EJS_free(void *arg);
 
 #ifdef __cplusplus
 }

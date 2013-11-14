@@ -58,6 +58,7 @@ struct req {
 	VTAILQ_HEAD(, req)	subreqs;
 	VTAILQ_ENTRY(req)	subreqs_list;
 
+	void			*scriptpriv;
 	VTAILQ_HEAD(, script)	scripthead;
 };
 
@@ -346,6 +347,8 @@ REQ_free(struct req *req)
 
 	if (req->goutput != NULL)
 		gumbo_destroy_output(req->goptions, req->goutput);
+	if (req->scriptpriv != NULL)
+		EJS_free(req->scriptpriv);
 	VTAILQ_FOREACH(scr, &req->scripthead, list)
 		SCR_free(scr);
 
@@ -491,6 +494,9 @@ REQ_main(struct req *req)
 	printf("content-type %s\n", content_type);
 
 	if (strcasestr(content_type, "text/html")) {
+		AZ(req->scriptpriv);
+		req->scriptpriv = EJS_new();
+		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));

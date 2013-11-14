@@ -27,14 +27,10 @@ static size_t gMaxStackSize = DEFAULT_MAX_STACK_SIZE;
 static unsigned gStackBaseThreadIndex;
 static size_t gStackChunkSize = 8192;
 
-/*
- * This variable is shared by multiple threads.
- */
-static JSRuntime *gRuntime = NULL;
-
 struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
+	JSRuntime		*rt;
 	JSContext		*cx;
 	JSObject		*global;
 };
@@ -143,12 +139,14 @@ EJS_new(void)
 	struct ejs_private *ep;
 	JSBool ret;
 
-	AN(gRuntime);
-
 	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
 	AN(ep);
 	ep->magic = EJS_PRIVATE_MAGIC;
-	ep->cx = NewContext(gRuntime);
+	ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
+	AN(ep->rt);
+	JS_SetGCParameter(ep->rt, JSGC_MAX_BYTES, 0xffffffff);
+	JS_SetNativeStackQuota(ep->rt, gMaxStackSize);
+	ep->cx = NewContext(ep->rt);
 	AN(ep->cx);
 	JS_SetOptions(ep->cx, JS_GetOptions(ep->cx) | JSOPTION_VAROBJFIX);
 
@@ -170,11 +168,12 @@ EJS_new(void)
 }
 
 void
-EJG_free(void *arg)
+EJS_free(void *arg)
 {
 	struct ejs_private *ep = (struct ejs_private *)arg;
 
 	JS_DestroyContext(ep->cx);
+	JS_DestroyRuntime(ep->rt);
 	free(ep);
 }
 
@@ -191,11 +190,5 @@ EJS_init(void)
 	ret = PR_SetThreadPrivate(gStackBaseThreadIndex, &stackDummy);
 	if (ret == PR_FAILURE)
 		return (-1);
-	rt = JS_NewRuntime(32L * 1024L * 1024L);
-	if (!rt)
-		return (-1);
-	JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
-	JS_SetNativeStackQuota(rt, gMaxStackSize);
-	gRuntime = rt;
-        return (0);
+	return (0);
 }
