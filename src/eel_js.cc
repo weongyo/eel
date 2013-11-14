@@ -36,6 +36,7 @@ struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
 	JSContext		*cx;
+	JSObject		*global;
 };
 
 static void
@@ -137,10 +138,9 @@ NewContext(JSRuntime *rt)
 }
 
 void *
-EJS_initreq(void)
+EJS_new(void)
 {
 	struct ejs_private *ep;
-	JSObject *global;
 	JSBool ret;
 
 	AN(gRuntime);
@@ -154,19 +154,28 @@ EJS_initreq(void)
 
 	JSAutoRequest ar(ep->cx);
 	/* Create the global object in a new compartment. */
-	global = JS_NewGlobalObject(ep->cx, &global_class, NULL);
-	AN(global);
+	ep->global = JS_NewGlobalObject(ep->cx, &global_class, NULL);
+	AN(ep->global);
 	/* Set the context's global */
-	JSAutoCompartment ac(ep->cx, global);
-	JS_SetGlobalObject(ep->cx, global);
+	JSAutoCompartment ac(ep->cx, ep->global);
+	JS_SetGlobalObject(ep->cx, ep->global);
 	/*
 	 * Populate the global object with the standard globals, like
 	 * Object and Array.
 	 */
-	ret = JS_InitStandardClasses(ep->cx, global);
+	ret = JS_InitStandardClasses(ep->cx, ep->global);
 	assert(ret == JS_TRUE);
 
 	return ((void *)ep);
+}
+
+void
+EJG_free(void *arg)
+{
+	struct ejs_private *ep = (struct ejs_private *)arg;
+
+	JS_DestroyContext(ep->cx);
+	free(ep);
 }
 
 int
