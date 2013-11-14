@@ -20,8 +20,6 @@
 #include "vsb.h"
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
-#define	AZ(foo)		do { assert((foo) == 0); } while (0)
-#define	AN(foo)		do { assert((foo) != 0); } while (0)
 
 struct worker;
 

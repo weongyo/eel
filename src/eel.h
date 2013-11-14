@@ -1,6 +1,9 @@
 #ifndef _EEL_H
 #define	_EEL_H
 
+#define	AZ(foo)		do { assert((foo) == 0); } while (0)
+#define	AN(foo)		do { assert((foo) != 0); } while (0)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
