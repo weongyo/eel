@@ -10,11 +10,13 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 
+/* vendor-specific headers */
 #include "curl/curl.h"
+#include "gumbo.h"
 #include "uriparser/Uri.h"
 
 #include "callout.h"
-#include "gumbo.h"
+#include "eel.h"
 #include "vsb.h"
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
@@ -610,6 +612,7 @@ main(void)
 
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
+	EJS_init();
 
 	for (i = 0; i < 1; i++) {
 		ret = pthread_create(&tid, NULL, core_main, NULL);
