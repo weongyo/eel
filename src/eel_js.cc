@@ -8,20 +8,6 @@
 
 #include "eel.h"
 
-static JSClass global_class = {
-	"global",
-	JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS,
-	JS_PropertyStub,
-	JS_PropertyStub,
-	JS_PropertyStub,
-	JS_StrictPropertyStub,
-	JS_EnumerateStub,
-	JS_ResolveStub,
-	JS_ConvertStub,
-	NULL,
-	JSCLASS_NO_OPTIONAL_MEMBERS
-};
-
 #define DEFAULT_MAX_STACK_SIZE 500000
 static size_t gMaxStackSize = DEFAULT_MAX_STACK_SIZE;
 static unsigned gStackBaseThreadIndex;
@@ -133,6 +119,51 @@ NewContext(JSRuntime *rt)
 	return (cx);
 }
 
+static JSBool
+global_enumerate(JSContext *cx, JSHandleObject obj)
+{
+
+	return JS_EnumerateStandardClasses(cx, obj);
+}
+
+static JSBool
+global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
+    unsigned int flags, JSMutableHandleObject objp)
+{
+	JSBool resolved;
+
+	if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+		return (false);
+	if (resolved) {
+		objp.set(obj);
+		return (true);
+	}
+	if (!(flags & JSRESOLVE_QUALIFIED)) {
+		if (!JSID_IS_STRING(id))
+			return (true);
+		JSAutoByteString name(cx, JSID_TO_STRING(id));
+		if (!name)
+			return (false);
+		printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
+		    name.ptr());
+	}
+	return (true);
+}
+
+static JSClass global_class = {
+	"global",
+	JSCLASS_NEW_RESOLVE | JSCLASS_GLOBAL_FLAGS,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_StrictPropertyStub,
+	global_enumerate,
+	(JSResolveOp)global_resolve,
+	JS_ConvertStub,
+	NULL,
+	JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
 void *
 EJS_new(void)
 {
@@ -157,13 +188,6 @@ EJS_new(void)
 	/* Set the context's global */
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
-	/*
-	 * Populate the global object with the standard globals, like
-	 * Object and Array.
-	 */
-	ret = JS_InitStandardClasses(ep->cx, ep->global);
-	assert(ret == JS_TRUE);
-
 	return ((void *)ep);
 }
 

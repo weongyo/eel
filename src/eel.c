@@ -502,8 +502,6 @@ REQ_main(struct req *req)
 		    VSB_data(vsb), VSB_len(vsb));
 		AN(req->goutput);
 		search_for_links(req, req->goutput->root);
-	} else {
-		printf("Skipped.\n");
 	}
 }
 
