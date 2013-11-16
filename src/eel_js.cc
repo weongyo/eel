@@ -119,18 +119,88 @@ NewContext(JSRuntime *rt)
 	return (cx);
 }
 
+/*----------------------------------------------------------------------*/
+
+static void
+dumpobj(JSContext *cx, JSObject *obj)
+{
+	JSBool ok;
+	JSString *str;
+	jsval x;
+
+	x = OBJECT_TO_JSVAL(obj);
+	if (JSVAL_IS_VOID(x)) {
+		printf("(void)");
+		return;
+	}
+	str = JS_ValueToSource(cx, x);
+	ok = !!str;
+	if (ok) {
+		JSAutoByteString bytes(cx, str);
+		ok = !!bytes;
+		if (ok)
+			fprintf(stderr, "%s\n",
+			    bytes.ptr());
+	}
+}
+
+/*----------------------------------------------------------------------*/
+
+static JSBool
+window_enumerate(JSContext *cx, JSHandleObject obj)
+{
+
+	return (true);
+}
+
+static JSBool
+window_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
+    unsigned int flags, JSMutableHandleObject objp)
+{
+
+	if (!(flags & JSRESOLVE_QUALIFIED)) {
+		if (!JSID_IS_STRING(id))
+			return (true);
+		JSAutoByteString name(cx, JSID_TO_STRING(id));
+		if (!name)
+			return (false);
+		printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
+		    name.ptr());
+	}
+	return (true);
+}
+
+static JSClass window_class = {
+	"window",
+	JSCLASS_NEW_RESOLVE,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_StrictPropertyStub,
+	window_enumerate,
+	(JSResolveOp)window_resolve,
+	JS_ConvertStub,
+	NULL,
+	JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+/*----------------------------------------------------------------------*/
+
 static JSBool
 global_enumerate(JSContext *cx, JSHandleObject obj)
 {
+	JSBool ret;
 
-	return JS_EnumerateStandardClasses(cx, obj);
+	ret = JS_EnumerateStandardClasses(cx, obj);
+	if (ret == JS_FALSE)
+		printf("%s:%d ENUM fail\n", __func__, __LINE__);
 }
 
 static JSBool
 global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
     unsigned int flags, JSMutableHandleObject objp)
 {
-	JSBool resolved;
+	JSBool ok, resolved, ret;
 
 	if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
 		return (false);
@@ -144,8 +214,26 @@ global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		JSAutoByteString name(cx, JSID_TO_STRING(id));
 		if (!name)
 			return (false);
-		printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
-		    name.ptr());
+		if (!strcasecmp(name.ptr(), "window")) {
+			JSObject *window;
+			JSString *str;
+			jsval x;
+
+			window = JS_NewObject(cx, &window_class, NULL, obj);
+			AN(window);
+			x = OBJECT_TO_JSVAL(window);
+
+			ret = JS_SetProperty(cx, obj, "window", &x);
+			assert(ret == JS_TRUE);
+
+			dumpobj(cx, obj);
+
+			objp.set(window);
+			return (true);
+		} else {
+			printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
+			    name.ptr());
+		}
 	}
 	return (true);
 }
@@ -163,6 +251,8 @@ static JSClass global_class = {
 	NULL,
 	JSCLASS_NO_OPTIONAL_MEMBERS
 };
+
+/*----------------------------------------------------------------------*/
 
 void *
 EJS_new(void)
@@ -188,6 +278,7 @@ EJS_new(void)
 	/* Set the context's global */
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
+
 	return ((void *)ep);
 }
 
