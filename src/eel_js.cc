@@ -225,10 +225,7 @@ global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 
 			ret = JS_SetProperty(cx, obj, "window", &x);
 			assert(ret == JS_TRUE);
-
-			dumpobj(cx, obj);
-
-			objp.set(window);
+			objp.set(obj);
 			return (true);
 		} else {
 			printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
