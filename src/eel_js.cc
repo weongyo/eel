@@ -121,16 +121,22 @@ NewContext(JSRuntime *rt)
 
 /*----------------------------------------------------------------------*/
 
+#define	DUMPOBJ(cx, obj)	dumpobj(cx, obj, __func__, __LINE__)
+
 static void
-dumpobj(JSContext *cx, JSObject *obj)
+dumpobj(JSContext *cx, JSObject *obj, const char *func, int line)
 {
 	JSBool ok;
 	JSString *str;
 	jsval x;
 
+	printf("==> %s:%d Dumping the object (cx %p obj %p)\n", func, line,
+	    cx, obj);
+
 	x = OBJECT_TO_JSVAL(obj);
 	if (JSVAL_IS_VOID(x)) {
 		printf("(void)");
+		printf("==> Done.\n");
 		return;
 	}
 	str = JS_ValueToSource(cx, x);
@@ -139,50 +145,36 @@ dumpobj(JSContext *cx, JSObject *obj)
 		JSAutoByteString bytes(cx, str);
 		ok = !!bytes;
 		if (ok)
-			fprintf(stderr, "%s\n",
-			    bytes.ptr());
+			fprintf(stderr, "%s\n", bytes.ptr());
 	}
+	printf("==> Done.\n");
 }
 
-/*----------------------------------------------------------------------*/
+#define	DUMPID(cx, id, flags)	dumpid(cx, id, flags, __func__, __LINE__)
 
-static JSBool
-window_enumerate(JSContext *cx, JSHandleObject obj)
+static void
+dumpid(JSContext *cx, JSHandleId id, unsigned int flags, const char *func,
+    int line)
 {
 
-	return (true);
-}
-
-static JSBool
-window_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
-    unsigned int flags, JSMutableHandleObject objp)
-{
-
-	if (!(flags & JSRESOLVE_QUALIFIED)) {
-		if (!JSID_IS_STRING(id))
-			return (true);
-		JSAutoByteString name(cx, JSID_TO_STRING(id));
-		if (!name)
-			return (false);
-		printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
-		    name.ptr());
+	if (JSID_IS_STRING(id)) {
+		JSAutoByteString tname(cx, JSID_TO_STRING(id));
+		if (!tname)
+			assert(0 == 1);
+		printf("%s: id == STRING(%s) flags == %#x\n", __func__,
+		    tname.ptr(), flags);
 	}
-	return (true);
+	if (JSID_IS_OBJECT(id))
+		printf("%s: id == OBJECT\n", __func__);
+	if (JSID_IS_INT(id))
+		printf("%s: id == INT\n", __func__);
+	if (JSID_IS_ZERO(id))
+		printf("%s: id == ZERO\n", __func__);
+	if (JSID_IS_VOID(id))
+		printf("%s: id == VOID\n", __func__);
+	if (JSID_IS_EMPTY(id))
+		printf("%s: id == EMPTY\n", __func__);
 }
-
-static JSClass window_class = {
-	"window",
-	JSCLASS_NEW_RESOLVE,
-	JS_PropertyStub,
-	JS_PropertyStub,
-	JS_PropertyStub,
-	JS_StrictPropertyStub,
-	window_enumerate,
-	(JSResolveOp)window_resolve,
-	JS_ConvertStub,
-	NULL,
-	JSCLASS_NO_OPTIONAL_MEMBERS
-};
 
 /*----------------------------------------------------------------------*/
 
@@ -201,6 +193,9 @@ global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
     unsigned int flags, JSMutableHandleObject objp)
 {
 	JSBool ok, resolved, ret;
+	jsval x;
+
+	DUMPID(cx, id, flags);
 
 	if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
 		return (false);
@@ -208,30 +203,15 @@ global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		objp.set(obj);
 		return (true);
 	}
-	if (!(flags & JSRESOLVE_QUALIFIED)) {
-		if (!JSID_IS_STRING(id))
-			return (true);
-		JSAutoByteString name(cx, JSID_TO_STRING(id));
-		if (!name)
-			return (false);
-		if (!strcasecmp(name.ptr(), "window")) {
-			JSObject *window;
-			JSString *str;
-			jsval x;
+	if ((flags & JSRESOLVE_QUALIFIED) != 0)
+		return (true);
 
-			window = JS_NewObject(cx, &window_class, NULL, obj);
-			AN(window);
-			x = OBJECT_TO_JSVAL(window);
-
-			ret = JS_SetProperty(cx, obj, "window", &x);
-			assert(ret == JS_TRUE);
-			objp.set(obj);
-			return (true);
-		} else {
-			printf("%s:%d: I'm here (%s)\n", __func__, __LINE__,
-			    name.ptr());
-		}
-	}
+	if (!JSID_IS_STRING(id))
+		return (true);
+	JSAutoByteString name(cx, JSID_TO_STRING(id));
+	if (!name)
+		return (false);
+	printf("%s:%d: I'm here (%s)\n", __func__, __LINE__, name.ptr());
 	return (true);
 }
 
@@ -304,6 +284,7 @@ EJS_eval(void *arg, const char *src, ssize_t len)
 	    &rval);
 	if (ret != JS_TRUE)
 		fprintf(stderr, "JS_EvaluateScript() error.\n");
+	DUMPOBJ(ep->cx, ep->global);
 }
 
 int

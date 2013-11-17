@@ -15,7 +15,8 @@ eel_CFLAGS = -I$(prefix)/include -I$(prefix)/include/nspr \
 	-Wnested-externs -Wformat -Werror
 
 eel_CXXFLAGS = -I$(prefix)/include/nspr \
-	-I$(prefix)/include/js-17.0
+	-I$(prefix)/include/js-17.0 \
+	-Werror
 
 eel_LDFLAGS = -L$(prefix)/lib
 
