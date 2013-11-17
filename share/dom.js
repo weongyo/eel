@@ -47,11 +47,31 @@ function __setArray__( target, array ) {
 /*----------------------------------------------------------------------*/
 
 DOMImplementation = function() {
+    this.preserveWhiteSpace = false;
+    this.namespaceAware = true;
+    this.errorChecking  = true;
 };
 
 /*----------------------------------------------------------------------*/
 
+var __appendChild__ = function(nodelist, newChild) {
+    if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE)
+        Array.prototype.push.apply(nodelist, newChild.childNodes.toArray());
+    else
+        Array.prototype.push.apply(nodelist, [newChild]);
+};
+
+var __isAncestor__ = function(target, node) {
+    return ((target == node) ||
+	    ((target.parentNode) && (__isAncestor__(target.parentNode, node))));
+};
+
+var __ownerDocument__ = function(node) {
+    return (node.nodeType == Node.DOCUMENT_NODE) ? node : node.ownerDocument;
+};
+
 Node = function(ownerDocument) {
+    this.ownerDocument = ownerDocument;
 };
 Node.ELEMENT_NODE                = 1;
 Node.ATTRIBUTE_NODE              = 2;
@@ -75,6 +95,55 @@ Node.DOCUMENT_POSITION_CONTAINS     = 0x08;
 Node.DOCUMENT_POSITION_CONTAINED_BY = 0x10;
 Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC      = 0x20;
 __extend__(Node.prototype, {
+    appendChild : function(newChild) {
+        if (!newChild)
+            return null;
+	DUMP(this);
+        if (__ownerDocument__(this).implementation.errorChecking) {
+            if (this._readonly) {
+                throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+            }
+            if (__ownerDocument__(this) != __ownerDocument__(this)) {
+                throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
+            }
+            if (__isAncestor__(this, newChild)) {
+              throw(new DOMException(DOMException.HIERARCHY_REQUEST_ERR));
+            }
+        }
+        var newChildParent = newChild.parentNode;
+        if (newChildParent) {
+            newChildParent.removeChild(newChild);
+        }
+        __appendChild__(this.childNodes, newChild);
+
+        if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+            if (newChild.childNodes.length > 0) {
+                for (var ind = 0; ind < newChild.childNodes.length; ind++) {
+                    newChild.childNodes[ind].parentNode = this;
+                }
+
+                if (this.lastChild) {
+                    this.lastChild.nextSibling = newChild.childNodes[0];
+                    newChild.childNodes[0].previousSibling = this.lastChild;
+                    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
+                } else {
+                    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
+                    this.firstChild = newChild.childNodes[0];
+                }
+            }
+        } else {
+            newChild.parentNode = this;
+            if (this.lastChild) {
+                this.lastChild.nextSibling = newChild;
+                newChild.previousSibling = this.lastChild;
+                this.lastChild = newChild;
+            } else {
+                this.lastChild = newChild;
+                this.firstChild = newChild;
+            }
+       }
+       return newChild;
+    },
 });
 
 /*----------------------------------------------------------------------*/
@@ -91,6 +160,8 @@ NodeList = function(ownerDocument, parentNode) {
 
 Document = function(implementation, docParentWindow) {
     Node.apply(this, arguments);
+    this.implementation = implementation;
+    this.ownerDocument = null;
 };
 Document.prototype = new Node();
 __extend__(Document.prototype, {
@@ -102,6 +173,9 @@ __extend__(Document.prototype, {
                 return this.childNodes[i];
         }
         return null;
+    },
+    get nodeType(){
+        return Node.DOCUMENT_NODE;
     },
 });
 
@@ -173,7 +247,7 @@ Window = function(scope, parent, opener) {
     scope.__defineGetter__('window', function () {
         return scope;
     });
-    var $htmlImplementation =  new DOMImplementation();
+    var $htmlImplementation = new DOMImplementation();
     var $document = new HTMLDocument($htmlImplementation, scope);
     return __extend__(scope, {
         get document(){
