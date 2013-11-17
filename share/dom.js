@@ -24,10 +24,170 @@
  * SUCH DAMAGE.
  */
 
-Window = function(scope, parent, opener) {
-    
+function __extend__(a, b) {
+    for (var i in b) {
+        var g = b.__lookupGetter__(i);
+	var s = b.__lookupSetter__(i);
+        if (g || s) {
+            if (g)
+		a.__defineGetter__(i, g);
+            if (s)
+		a.__defineSetter__(i, s);
+        } else
+            a[i] = b[i];
+    }
+    return a;
+}
+
+function __setArray__( target, array ) {
+    target.length = 0;
+    Array.prototype.push.apply( target, array );
+}
+
+/*----------------------------------------------------------------------*/
+
+DOMImplementation = function() {
 };
 
-var window = new Window(this, this);
+/*----------------------------------------------------------------------*/
+
+Node = function(ownerDocument) {
+};
+Node.ELEMENT_NODE                = 1;
+Node.ATTRIBUTE_NODE              = 2;
+Node.TEXT_NODE                   = 3;
+Node.CDATA_SECTION_NODE          = 4;
+Node.ENTITY_REFERENCE_NODE       = 5;
+Node.ENTITY_NODE                 = 6;
+Node.PROCESSING_INSTRUCTION_NODE = 7;
+Node.COMMENT_NODE                = 8;
+Node.DOCUMENT_NODE               = 9;
+Node.DOCUMENT_TYPE_NODE          = 10;
+Node.DOCUMENT_FRAGMENT_NODE      = 11;
+Node.NOTATION_NODE               = 12;
+Node.NAMESPACE_NODE              = 13;
+
+Node.DOCUMENT_POSITION_EQUAL        = 0x00;
+Node.DOCUMENT_POSITION_DISCONNECTED = 0x01;
+Node.DOCUMENT_POSITION_PRECEDING    = 0x02;
+Node.DOCUMENT_POSITION_FOLLOWING    = 0x04;
+Node.DOCUMENT_POSITION_CONTAINS     = 0x08;
+Node.DOCUMENT_POSITION_CONTAINED_BY = 0x10;
+Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC      = 0x20;
+__extend__(Node.prototype, {
+});
+
+/*----------------------------------------------------------------------*/
+
+NodeList = function(ownerDocument, parentNode) {
+    this.length = 0;
+    this.parentNode = parentNode;
+    this.ownerDocument = ownerDocument;
+    this._readonly = false;
+    __setArray__(this, []);
+};
+
+/*----------------------------------------------------------------------*/
+
+Document = function(implementation, docParentWindow) {
+    Node.apply(this, arguments);
+};
+Document.prototype = new Node();
+__extend__(Document.prototype, {
+    get documentElement(){
+        var i, length = this.childNodes ? this.childNodes.length : 0;
+
+        for (i = 0; i < length; i++) {
+            if (this.childNodes[i].nodeType === Node.ELEMENT_NODE)
+                return this.childNodes[i];
+        }
+        return null;
+    },
+});
+
+/*----------------------------------------------------------------------*/
+
+Element = function(ownerDocument) {
+    Node.apply(this, arguments);
+};
+
+var  __DOMElement__ = Element;
+
+/*----------------------------------------------------------------------*/
+
+HTMLElement = function(ownerDocument) {
+    __DOMElement__.apply(this, arguments);
+};
+
+/*----------------------------------------------------------------------*/
+
+HTMLHtmlElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+
+HTMLHtmlElement.prototype = new HTMLElement();
+__extend__(HTMLHtmlElement.prototype, {
+
+    // no additional properties or elements
+
+    toString: function() {
+        return '[object HTMLHtmlElement]';
+    }
+});
+
+/*----------------------------------------------------------------------*/
+
+HTMLDocument = function(implementation, ownerWindow, referrer) {
+    Document.apply(this, arguments);
+};
+HTMLDocument.prototype = new Document();
+__extend__(HTMLDocument.prototype, {
+    createElement: function(tagName) {
+        var node;
+
+        tagName = tagName.toUpperCase();
+	switch (tagName) {
+	case "HTML":
+	    new HTMLHtmlElement(this);
+	    break;
+	default:
+	    DUMP(tagName);
+	}
+	return "123";
+    },
+    get documentElement(){
+        var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
+        if( html === null){
+            html = this.createElement('html');
+            this.appendChild(html);
+            html.appendChild(this.createElement('head'));
+            html.appendChild(this.createElement('body'));
+        }
+        return html;
+    },
+});
+
+/*----------------------------------------------------------------------*/
+
+Window = function(scope, parent, opener) {
+    scope.__defineGetter__('window', function () {
+        return scope;
+    });
+    var $htmlImplementation =  new DOMImplementation();
+    var $document = new HTMLDocument($htmlImplementation, scope);
+    return __extend__(scope, {
+        get document(){
+            return $document;
+        },
+        set document(doc){
+            $document = doc;
+        },
+        get window(){
+            return this;
+        },
+     });
+};
+
+new Window(this, this);
 
 
