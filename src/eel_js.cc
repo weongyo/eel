@@ -1,3 +1,29 @@
+/*-
+ * Copyright (c) 2013 Weongyo Jeong <weongyo@gmail.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
 #include "config.h"
 
 #include <assert.h>
@@ -235,7 +261,11 @@ void *
 EJS_new(void)
 {
 	struct ejs_private *ep;
+	FILE *fp;
 	JSBool ret;
+	JSScript *script;
+	uint32_t oldopts;
+	const char *filename = "/opt/eel/1.0.0/share/dom.js";
 
 	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
 	AN(ep);
@@ -256,6 +286,15 @@ EJS_new(void)
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
 
+	fp = fopen(filename, "r");
+	AN(fp);
+        oldopts = JS_GetOptions(ep->cx);
+	JS_SetOptions(ep->cx, oldopts | JSOPTION_COMPILE_N_GO |
+	    JSOPTION_NO_SCRIPT_RVAL);
+        script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename, fp);
+        JS_SetOptions(ep->cx, oldopts);
+	if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
+		printf("[ERROR] JS_ExecuteScript() failed.");
 	return ((void *)ep);
 }
 
