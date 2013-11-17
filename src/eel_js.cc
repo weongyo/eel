@@ -202,6 +202,23 @@ dumpid(JSContext *cx, JSHandleId id, unsigned int flags, const char *func,
 		printf("%s: id == EMPTY\n", __func__);
 }
 
+static JSBool
+dump(JSContext *cx, unsigned argc, jsval *vp)
+{
+	jsval *argv = JS_ARGV(cx, vp);
+
+	if (!JSVAL_IS_PRIMITIVE(argv[0]))
+		DUMPOBJ(cx, JSVAL_TO_OBJECT(argv[0]));
+	else if (JSVAL_IS_STRING(argv[0])) {
+		JSAutoByteString tname(cx, JSVAL_TO_STRING(argv[0]));
+		if (!tname)
+			assert(0 == 1);
+		printf("%s: STRING(%s)\n", __func__, tname.ptr());
+	} else
+		printf("DUMP: UNKNOWN TYPE\n");
+	return JS_TRUE;
+}
+
 /*----------------------------------------------------------------------*/
 
 static JSBool
@@ -282,7 +299,11 @@ EJS_new(void)
         script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename, fp);
         JS_SetOptions(ep->cx, oldopts);
 	if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
-		printf("[ERROR] JS_ExecuteScript() failed.");
+		printf("[ERROR] JS_ExecuteScript() failed.\n");
+	fclose(fp);
+
+	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
+		printf("[ERROR] JS_DefineFunction() failed.\n");
 	return ((void *)ep);
 }
 
@@ -311,7 +332,6 @@ EJS_eval(void *arg, const char *src, ssize_t len)
 	    &rval);
 	if (ret != JS_TRUE)
 		fprintf(stderr, "JS_EvaluateScript() error.\n");
-	DUMPOBJ(ep->cx, ep->global);
 }
 
 int
