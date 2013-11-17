@@ -218,10 +218,7 @@ static JSBool
 global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
     unsigned int flags, JSMutableHandleObject objp)
 {
-	JSBool ok, resolved, ret;
-	jsval x;
-
-	DUMPID(cx, id, flags);
+	JSBool resolved;
 
 	if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
 		return (false);
@@ -229,15 +226,6 @@ global_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		objp.set(obj);
 		return (true);
 	}
-	if ((flags & JSRESOLVE_QUALIFIED) != 0)
-		return (true);
-
-	if (!JSID_IS_STRING(id))
-		return (true);
-	JSAutoByteString name(cx, JSID_TO_STRING(id));
-	if (!name)
-		return (false);
-	printf("%s:%d: I'm here (%s)\n", __func__, __LINE__, name.ptr());
 	return (true);
 }
 

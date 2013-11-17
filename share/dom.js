@@ -24,3 +24,10 @@
  * SUCH DAMAGE.
  */
 
+Window = function(scope, parent, opener) {
+    
+};
+
+var window = new Window(this, this);
+
+
