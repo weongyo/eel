@@ -244,7 +244,6 @@ __extend__(HTMLDocument.prototype, {
         if( html === null){
             html = this.createElement('html');
             this.appendChild(html);
-	    DUMP(html);
             html.appendChild(this.createElement('head'));
             html.appendChild(this.createElement('body'));
         }
