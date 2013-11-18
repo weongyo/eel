@@ -100,28 +100,22 @@ __extend__(Node.prototype, {
 	if (!newChild)
 	    return null;
 	if (__ownerDocument__(this).implementation.errorChecking) {
-	    if (this._readonly) {
+	    if (this._readonly)
 		throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
-	    }
-	    if (__ownerDocument__(this) != __ownerDocument__(this)) {
+	    if (__ownerDocument__(this) != __ownerDocument__(this))
 		throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
-	    }
-	    if (__isAncestor__(this, newChild)) {
+	    if (__isAncestor__(this, newChild))
 	      throw(new DOMException(DOMException.HIERARCHY_REQUEST_ERR));
-	    }
 	}
 	var newChildParent = newChild.parentNode;
-	if (newChildParent) {
+	if (newChildParent)
 	    newChildParent.removeChild(newChild);
-	}
 	__appendChild__(this.childNodes, newChild);
 
 	if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
 	    if (newChild.childNodes.length > 0) {
-		for (var ind = 0; ind < newChild.childNodes.length; ind++) {
+		for (var ind = 0; ind < newChild.childNodes.length; ind++)
 		    newChild.childNodes[ind].parentNode = this;
-		}
-
 		if (this.lastChild) {
 		    this.lastChild.nextSibling = newChild.childNodes[0];
 		    newChild.childNodes[0].previousSibling = this.lastChild;
@@ -197,6 +191,20 @@ HTMLElement.prototype = new Element();
 
 /*----------------------------------------------------------------------*/
 
+HTMLBodyElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLBodyElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLDivElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLDivElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLHeadElement = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
@@ -207,7 +215,6 @@ HTMLHeadElement.prototype = new HTMLElement();
 HTMLHtmlElement = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
-
 HTMLHtmlElement.prototype = new HTMLElement();
 __extend__(HTMLHtmlElement.prototype, {
     toString: function() {
@@ -227,6 +234,12 @@ __extend__(HTMLDocument.prototype, {
 
 	tagName = tagName.toUpperCase();
 	switch (tagName) {
+        case "DIV":
+            node = new HTMLDivElement(this);
+	    break;
+        case "BODY":
+            node = new HTMLBodyElement(this);
+	    break;
 	case "HEAD":
 	    node = new HTMLHeadElement(this);
 	    break;
