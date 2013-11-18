@@ -549,11 +549,11 @@ REQ_final(struct req *req)
 
 			tmp = (const struct req *)scr->priv;
 			assert(tmp->magic == REQ_MAGIC);
-			EJS_eval(req->scriptpriv, VSB_data(tmp->vsb),
+			EJS_eval(req->scriptpriv, req->url, VSB_data(tmp->vsb),
 			    VSB_len(tmp->vsb));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
 			ptr = (const char *)scr->priv;
-			EJS_eval(req->scriptpriv, ptr, strlen(ptr));
+			EJS_eval(req->scriptpriv, NULL, ptr, strlen(ptr));
 		} else
 			assert(0 == 1);
 	}

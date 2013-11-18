@@ -324,7 +324,7 @@ EJS_free(void *arg)
 }
 
 void
-EJS_eval(void *arg, const char *src, ssize_t len)
+EJS_eval(void *arg, const char *filename, const char *src, ssize_t len)
 {
 	struct ejs_private *ep = (struct ejs_private *)arg;
 	JSBool ret;
@@ -332,7 +332,7 @@ EJS_eval(void *arg, const char *src, ssize_t len)
 
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
-	ret = JS_EvaluateScript(ep->cx, ep->global, src, len, "script", 1,
+	ret = JS_EvaluateScript(ep->cx, ep->global, src, len, filename, 1,
 	    &rval);
 	if (ret != JS_TRUE)
 		fprintf(stderr, "JS_EvaluateScript() error.\n");

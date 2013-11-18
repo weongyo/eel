@@ -41,7 +41,7 @@ function __extend__(a, b) {
 
 function __setArray__( target, array ) {
     target.length = 0;
-    Array.prototype.push.apply( target, array );
+    Array.prototype.push.apply(target, array);
 }
 
 /*----------------------------------------------------------------------*/
