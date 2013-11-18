@@ -63,6 +63,8 @@ struct script {
 #define	SCRIPT_T_REQ		1
 #define	SCRIPT_T_BUFFER		2
 	const void		*priv;
+	const char		*filename;	/* only for SCRIPT_T_BUFFER */
+	unsigned int		line;		/* only for SCRIPT_T_BUFFER */	
 	VTAILQ_ENTRY(script)	list;
 };
 
@@ -285,7 +287,8 @@ SCR_newreq(struct req *req, struct req *newone)
 }
 
 static void
-SCR_newbuffer(struct req *req, const char *buf)
+SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
+    const char *buf)
 {
 	struct script *scr;
 
@@ -294,6 +297,8 @@ SCR_newbuffer(struct req *req, const char *buf)
 	scr->magic = SCRIPT_MAGIC;
 	scr->type = SCRIPT_T_BUFFER;
 	scr->priv = buf;
+	scr->filename = filename;
+	scr->line = line;
 
 	VTAILQ_INSERT_TAIL(&req->scripthead, scr, list);
 }
@@ -489,7 +494,8 @@ search_for_links(struct req *req, GumboNode* node)
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
 			printf("SCRIPT BODY { %s }\n", text->v.text.text);
-			SCR_newbuffer(req, text->v.text.text);
+			SCR_newbuffer(req, req->url,
+			    text->v.text.start_pos.line, text->v.text.text);
 			break;
 		case GUMBO_NODE_WHITESPACE:
 			break;
@@ -549,11 +555,17 @@ REQ_final(struct req *req)
 
 			tmp = (const struct req *)scr->priv;
 			assert(tmp->magic == REQ_MAGIC);
-			EJS_eval(req->scriptpriv, req->url, VSB_data(tmp->vsb),
+			EJS_eval(req->scriptpriv, tmp->url, VSB_data(tmp->vsb),
 			    VSB_len(tmp->vsb));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
+			int l;
+			char filename[BUFSIZ];
+
+			l = snprintf(filename, sizeof(filename), "%s:%d",
+			    scr->filename, scr->line);
+			assert(l < sizeof(filename));
 			ptr = (const char *)scr->priv;
-			EJS_eval(req->scriptpriv, NULL, ptr, strlen(ptr));
+			EJS_eval(req->scriptpriv, filename, ptr, strlen(ptr));
 		} else
 			assert(0 == 1);
 	}
