@@ -148,22 +148,16 @@ NewContext(JSRuntime *rt)
 
 /*----------------------------------------------------------------------*/
 
-#define	DUMPOBJ(cx, obj)	dumpobj(cx, obj, __func__, __LINE__)
-
 static void
-dumpobj(JSContext *cx, JSObject *obj, const char *func, int line)
+dumpobj(JSContext *cx, JSObject *obj)
 {
 	JSBool ok;
 	JSString *str;
 	jsval x;
 
-	printf("==> %s:%d Dumping the object (cx %p obj %p)\n", func, line,
-	    cx, obj);
-
 	x = OBJECT_TO_JSVAL(obj);
 	if (JSVAL_IS_VOID(x)) {
 		printf("(void)");
-		printf("==> Done.\n");
 		return;
 	}
 	str = JS_ValueToSource(cx, x);
@@ -174,7 +168,6 @@ dumpobj(JSContext *cx, JSObject *obj, const char *func, int line)
 		if (ok)
 			fprintf(stderr, "%s\n", bytes.ptr());
 	}
-	printf("==> Done.\n");
 }
 
 #define	DUMPID(cx, id, flags)	dumpid(cx, id, flags, __func__, __LINE__)
@@ -212,7 +205,7 @@ dump(JSContext *cx, unsigned argc, jsval *vp)
 	js_DumpValue(argv[0]);
 
 	if (!JSVAL_IS_PRIMITIVE(argv[0]))
-		DUMPOBJ(cx, JSVAL_TO_OBJECT(argv[0]));
+		dumpobj(cx, JSVAL_TO_OBJECT(argv[0]));
 	else if (JSVAL_IS_STRING(argv[0])) {
 		JSAutoByteString tname(cx, JSVAL_TO_STRING(argv[0]));
 		if (!tname)

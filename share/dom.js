@@ -184,14 +184,23 @@ __extend__(Document.prototype, {
 Element = function(ownerDocument) {
     Node.apply(this, arguments);
 };
-
-var  __DOMElement__ = Element;
+Element.prototype = new Node();
 
 /*----------------------------------------------------------------------*/
+
+var  __DOMElement__ = Element;
 
 HTMLElement = function(ownerDocument) {
     __DOMElement__.apply(this, arguments);
 };
+HTMLElement.prototype = new Element();
+
+/*----------------------------------------------------------------------*/
+
+HTMLHeadElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLHeadElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
@@ -201,9 +210,6 @@ HTMLHtmlElement = function(ownerDocument) {
 
 HTMLHtmlElement.prototype = new HTMLElement();
 __extend__(HTMLHtmlElement.prototype, {
-
-    // no additional properties or elements
-
     toString: function() {
         return '[object HTMLHtmlElement]';
     }
@@ -221,6 +227,9 @@ __extend__(HTMLDocument.prototype, {
 
         tagName = tagName.toUpperCase();
 	switch (tagName) {
+        case "HEAD":
+            node = new HTMLHeadElement(this);
+	    break;
 	case "HTML":
 	    node = new HTMLHtmlElement(this);
 	    break;
@@ -228,17 +237,18 @@ __extend__(HTMLDocument.prototype, {
 	    DUMP(tagName);
 	}
 	node.nodeName  = tagName;
-        return node;
+        return (node);
     },
     get documentElement() {
         var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
         if( html === null){
             html = this.createElement('html');
             this.appendChild(html);
+	    DUMP(html);
             html.appendChild(this.createElement('head'));
             html.appendChild(this.createElement('body'));
         }
-        return html;
+        return (html);
     },
 });
 
