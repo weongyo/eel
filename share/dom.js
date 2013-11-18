@@ -26,15 +26,15 @@
 
 function __extend__(a, b) {
     for (var i in b) {
-        var g = b.__lookupGetter__(i);
+	var g = b.__lookupGetter__(i);
 	var s = b.__lookupSetter__(i);
-        if (g || s) {
-            if (g)
+	if (g || s) {
+	    if (g)
 		a.__defineGetter__(i, g);
-            if (s)
+	    if (s)
 		a.__defineSetter__(i, s);
-        } else
-            a[i] = b[i];
+	} else
+	    a[i] = b[i];
     }
     return a;
 }
@@ -56,9 +56,9 @@ DOMImplementation = function() {
 
 var __appendChild__ = function(nodelist, newChild) {
     if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE)
-        Array.prototype.push.apply(nodelist, newChild.childNodes.toArray());
+	Array.prototype.push.apply(nodelist, newChild.childNodes.toArray());
     else
-        Array.prototype.push.apply(nodelist, [newChild]);
+	Array.prototype.push.apply(nodelist, [newChild]);
 };
 
 var __isAncestor__ = function(target, node) {
@@ -74,21 +74,21 @@ Node = function(ownerDocument) {
     this.ownerDocument = ownerDocument;
     this.childNodes = new NodeList(ownerDocument, this);
 };
-Node.ELEMENT_NODE                = 1;
-Node.ATTRIBUTE_NODE              = 2;
-Node.TEXT_NODE                   = 3;
-Node.CDATA_SECTION_NODE          = 4;
+Node.ELEMENT_NODE		= 1;
+Node.ATTRIBUTE_NODE	      = 2;
+Node.TEXT_NODE		   = 3;
+Node.CDATA_SECTION_NODE	  = 4;
 Node.ENTITY_REFERENCE_NODE       = 5;
-Node.ENTITY_NODE                 = 6;
+Node.ENTITY_NODE		 = 6;
 Node.PROCESSING_INSTRUCTION_NODE = 7;
-Node.COMMENT_NODE                = 8;
-Node.DOCUMENT_NODE               = 9;
-Node.DOCUMENT_TYPE_NODE          = 10;
+Node.COMMENT_NODE		= 8;
+Node.DOCUMENT_NODE	       = 9;
+Node.DOCUMENT_TYPE_NODE	  = 10;
 Node.DOCUMENT_FRAGMENT_NODE      = 11;
-Node.NOTATION_NODE               = 12;
-Node.NAMESPACE_NODE              = 13;
+Node.NOTATION_NODE	       = 12;
+Node.NAMESPACE_NODE	      = 13;
 
-Node.DOCUMENT_POSITION_EQUAL        = 0x00;
+Node.DOCUMENT_POSITION_EQUAL	= 0x00;
 Node.DOCUMENT_POSITION_DISCONNECTED = 0x01;
 Node.DOCUMENT_POSITION_PRECEDING    = 0x02;
 Node.DOCUMENT_POSITION_FOLLOWING    = 0x04;
@@ -97,50 +97,50 @@ Node.DOCUMENT_POSITION_CONTAINED_BY = 0x10;
 Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC      = 0x20;
 __extend__(Node.prototype, {
     appendChild : function(newChild) {
-        if (!newChild)
-            return null;
-        if (__ownerDocument__(this).implementation.errorChecking) {
-            if (this._readonly) {
-                throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
-            }
-            if (__ownerDocument__(this) != __ownerDocument__(this)) {
-                throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
-            }
-            if (__isAncestor__(this, newChild)) {
-              throw(new DOMException(DOMException.HIERARCHY_REQUEST_ERR));
-            }
-        }
-        var newChildParent = newChild.parentNode;
-        if (newChildParent) {
-            newChildParent.removeChild(newChild);
-        }
-        __appendChild__(this.childNodes, newChild);
+	if (!newChild)
+	    return null;
+	if (__ownerDocument__(this).implementation.errorChecking) {
+	    if (this._readonly) {
+		throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+	    }
+	    if (__ownerDocument__(this) != __ownerDocument__(this)) {
+		throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
+	    }
+	    if (__isAncestor__(this, newChild)) {
+	      throw(new DOMException(DOMException.HIERARCHY_REQUEST_ERR));
+	    }
+	}
+	var newChildParent = newChild.parentNode;
+	if (newChildParent) {
+	    newChildParent.removeChild(newChild);
+	}
+	__appendChild__(this.childNodes, newChild);
 
-        if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
-            if (newChild.childNodes.length > 0) {
-                for (var ind = 0; ind < newChild.childNodes.length; ind++) {
-                    newChild.childNodes[ind].parentNode = this;
-                }
+	if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+	    if (newChild.childNodes.length > 0) {
+		for (var ind = 0; ind < newChild.childNodes.length; ind++) {
+		    newChild.childNodes[ind].parentNode = this;
+		}
 
-                if (this.lastChild) {
-                    this.lastChild.nextSibling = newChild.childNodes[0];
-                    newChild.childNodes[0].previousSibling = this.lastChild;
-                    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
-                } else {
-                    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
-                    this.firstChild = newChild.childNodes[0];
-                }
-            }
-        } else {
-            newChild.parentNode = this;
-            if (this.lastChild) {
-                this.lastChild.nextSibling = newChild;
-                newChild.previousSibling = this.lastChild;
-                this.lastChild = newChild;
-            } else {
-                this.lastChild = newChild;
-                this.firstChild = newChild;
-            }
+		if (this.lastChild) {
+		    this.lastChild.nextSibling = newChild.childNodes[0];
+		    newChild.childNodes[0].previousSibling = this.lastChild;
+		    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
+		} else {
+		    this.lastChild = newChild.childNodes[newChild.childNodes.length-1];
+		    this.firstChild = newChild.childNodes[0];
+		}
+	    }
+	} else {
+	    newChild.parentNode = this;
+	    if (this.lastChild) {
+		this.lastChild.nextSibling = newChild;
+		newChild.previousSibling = this.lastChild;
+		this.lastChild = newChild;
+	    } else {
+		this.lastChild = newChild;
+		this.firstChild = newChild;
+	    }
        }
        return newChild;
     },
@@ -166,16 +166,16 @@ Document = function(implementation, docParentWindow) {
 Document.prototype = new Node();
 __extend__(Document.prototype, {
     get documentElement(){
-        var i, length = this.childNodes ? this.childNodes.length : 0;
+	var i, length = this.childNodes ? this.childNodes.length : 0;
 
-        for (i = 0; i < length; i++) {
-            if (this.childNodes[i].nodeType === Node.ELEMENT_NODE)
-                return this.childNodes[i];
-        }
-        return null;
+	for (i = 0; i < length; i++) {
+	    if (this.childNodes[i].nodeType === Node.ELEMENT_NODE)
+		return this.childNodes[i];
+	}
+	return null;
     },
     get nodeType(){
-        return Node.DOCUMENT_NODE;
+	return Node.DOCUMENT_NODE;
     },
 });
 
@@ -211,7 +211,7 @@ HTMLHtmlElement = function(ownerDocument) {
 HTMLHtmlElement.prototype = new HTMLElement();
 __extend__(HTMLHtmlElement.prototype, {
     toString: function() {
-        return '[object HTMLHtmlElement]';
+	return '[object HTMLHtmlElement]';
     }
 });
 
@@ -223,12 +223,12 @@ HTMLDocument = function(implementation, ownerWindow, referrer) {
 HTMLDocument.prototype = new Document();
 __extend__(HTMLDocument.prototype, {
     createElement: function(tagName) {
-        var node;
+	var node;
 
-        tagName = tagName.toUpperCase();
+	tagName = tagName.toUpperCase();
 	switch (tagName) {
-        case "HEAD":
-            node = new HTMLHeadElement(this);
+	case "HEAD":
+	    node = new HTMLHeadElement(this);
 	    break;
 	case "HTML":
 	    node = new HTMLHtmlElement(this);
@@ -237,17 +237,17 @@ __extend__(HTMLDocument.prototype, {
 	    DUMP(tagName);
 	}
 	node.nodeName  = tagName;
-        return (node);
+	return (node);
     },
     get documentElement() {
-        var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
-        if( html === null){
-            html = this.createElement('html');
-            this.appendChild(html);
-            html.appendChild(this.createElement('head'));
-            html.appendChild(this.createElement('body'));
-        }
-        return (html);
+	var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
+	if( html === null){
+	    html = this.createElement('html');
+	    this.appendChild(html);
+	    html.appendChild(this.createElement('head'));
+	    html.appendChild(this.createElement('body'));
+	}
+	return (html);
     },
 });
 
@@ -255,23 +255,21 @@ __extend__(HTMLDocument.prototype, {
 
 Window = function(scope, parent, opener) {
     scope.__defineGetter__('window', function () {
-        return scope;
+	return scope;
     });
     var $htmlImplementation = new DOMImplementation();
     var $document = new HTMLDocument($htmlImplementation, scope);
     return __extend__(scope, {
-        get document(){
-            return $document;
-        },
-        set document(doc){
-            $document = doc;
-        },
-        get window(){
-            return this;
-        },
+	get document(){
+	    return $document;
+	},
+	set document(doc){
+	    $document = doc;
+	},
+	get window(){
+	    return this;
+	},
      });
 };
 
 new Window(this, this);
-
-
