@@ -72,6 +72,7 @@ var __ownerDocument__ = function(node) {
 
 Node = function(ownerDocument) {
     this.ownerDocument = ownerDocument;
+    this.childNodes = new NodeList(ownerDocument, this);
 };
 Node.ELEMENT_NODE                = 1;
 Node.ATTRIBUTE_NODE              = 2;
@@ -98,7 +99,6 @@ __extend__(Node.prototype, {
     appendChild : function(newChild) {
         if (!newChild)
             return null;
-	DUMP(this);
         if (__ownerDocument__(this).implementation.errorChecking) {
             if (this._readonly) {
                 throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
@@ -222,14 +222,15 @@ __extend__(HTMLDocument.prototype, {
         tagName = tagName.toUpperCase();
 	switch (tagName) {
 	case "HTML":
-	    new HTMLHtmlElement(this);
+	    node = new HTMLHtmlElement(this);
 	    break;
 	default:
 	    DUMP(tagName);
 	}
-	return "123";
+	node.nodeName  = tagName;
+        return node;
     },
-    get documentElement(){
+    get documentElement() {
         var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
         if( html === null){
             html = this.createElement('html');

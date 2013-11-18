@@ -29,6 +29,7 @@
 #include <assert.h>
 
 #include "jsapi.h"
+#include "jsdbgapi.h"
 #include "jslock.h"
 #include "jsprf.h"
 
@@ -206,6 +207,9 @@ static JSBool
 dump(JSContext *cx, unsigned argc, jsval *vp)
 {
 	jsval *argv = JS_ARGV(cx, vp);
+
+	js_DumpBacktrace(cx);
+	js_DumpValue(argv[0]);
 
 	if (!JSVAL_IS_PRIMITIVE(argv[0]))
 		DUMPOBJ(cx, JSVAL_TO_OBJECT(argv[0]));
