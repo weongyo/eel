@@ -12,7 +12,8 @@ extern "C" {
 int	EJS_init(void);
 void *	EJS_new(void);
 void	EJS_free(void *arg);
-void	EJS_eval(void *arg, const char *filename, const char *src, ssize_t len);
+void	EJS_eval(void *arg, const char *filename, unsigned int line,
+	    const char *src, ssize_t len);
 
 #ifdef __cplusplus
 }

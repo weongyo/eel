@@ -523,7 +523,7 @@ REQ_main(struct req *req)
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
-	printf("content-type %s\n", content_type);
+	printf("%s: content-type %s\n", __func__, content_type);
 
 	if (strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
@@ -544,8 +544,6 @@ REQ_final(struct req *req)
 	struct script *scr;
 	const char *ptr;
 
-	printf("FINAL (req %p)\n", req);
-
 	AN(req->scriptpriv);
 
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
@@ -555,17 +553,12 @@ REQ_final(struct req *req)
 
 			tmp = (const struct req *)scr->priv;
 			assert(tmp->magic == REQ_MAGIC);
-			EJS_eval(req->scriptpriv, tmp->url, VSB_data(tmp->vsb),
-			    VSB_len(tmp->vsb));
+			EJS_eval(req->scriptpriv, tmp->url, 1,
+			    VSB_data(tmp->vsb), VSB_len(tmp->vsb));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
-			int l;
-			char filename[BUFSIZ];
-
-			l = snprintf(filename, sizeof(filename), "%s:%d",
-			    scr->filename, scr->line);
-			assert(l < sizeof(filename));
 			ptr = (const char *)scr->priv;
-			EJS_eval(req->scriptpriv, filename, ptr, strlen(ptr));
+			EJS_eval(req->scriptpriv, scr->filename, scr->line, ptr,
+			    strlen(ptr));
 		} else
 			assert(0 == 1);
 	}
