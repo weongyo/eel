@@ -216,7 +216,7 @@ function __addEventListener__(target, type, fn, phase){
         $events[target.uuid][type][phase].push(fn);
 }
 
-EventTarget = function(){};
+EventTarget = function() {};
 EventTarget.prototype.addEventListener = function(type, fn, phase){
     __addEventListener__(this, type, fn, phase);
 };
@@ -290,7 +290,7 @@ __extend__(Document.prototype, {
         var node = new DocumentFragment(this);
         return (node);
     },
-    get documentElement(){
+    get documentElement() {
 	var i, length = this.childNodes ? this.childNodes.length : 0;
 
 	for (i = 0; i < length; i++) {
@@ -299,7 +299,7 @@ __extend__(Document.prototype, {
 	}
 	return null;
     },
-    get nodeType(){
+    get nodeType() {
 	return Node.DOCUMENT_NODE;
     },
 });
@@ -575,6 +575,41 @@ Location = function(url, doc, history) {
 
 /*----------------------------------------------------------------------*/
 
+Navigator = function() {
+
+    return {
+        get appCodeName() {
+	    DUMP(this);
+        },
+        get appName() {
+	    DUMP(this);
+        },
+        get appVersion() {
+	    DUMP(this);
+        },
+        get cookieEnabled() {
+	    DUMP(this);
+        },
+        get mimeTypes() {
+	    DUMP(this);
+        },
+        get platform() {
+	    DUMP(this);
+        },
+        get plugins() {
+	    DUMP(this);
+        },
+        get userAgent() {
+	    DUMP(this);
+        },
+        javaEnabled : function() {
+	    DUMP(this);
+        }
+    };
+};
+
+/*----------------------------------------------------------------------*/
+
 Window = function(scope, parent, opener) {
     scope.__defineGetter__('window', function () {
 	return scope;
@@ -583,6 +618,7 @@ Window = function(scope, parent, opener) {
     var $document = new HTMLDocument($htmlImplementation, scope);
     var $history = new History();
     var $location = new Location('about:blank', $document, $history);
+    var $navigator = new Navigator();
     __extend__(scope, EventTarget.prototype);
     return __extend__(scope, {
 	get document() {
@@ -603,6 +639,9 @@ Window = function(scope, parent, opener) {
             } else {
                 $location.replace(uri);
             }
+        },
+        get navigator() {
+            return $navigator;
         },
 	get window() {
 	    return this;
