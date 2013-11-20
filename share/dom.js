@@ -70,6 +70,28 @@ var __ownerDocument__ = function(node) {
     return (node.nodeType == Node.DOCUMENT_NODE) ? node : node.ownerDocument;
 };
 
+var __findItemIndex__ = function(nodelist, node) {
+    var ret = -1, i;
+
+    for (i = 0; i < nodelist.length; i++) {
+        if (nodelist[i] === node) {
+            ret = i;
+            break;
+        }
+    }
+    return (ret);
+};
+
+var __removeChild__ = function(nodelist, refChildIndex) {
+    var ret = null;
+
+    if (refChildIndex > -1) {
+        ret = nodelist[refChildIndex];
+        Array.prototype.splice.apply(nodelist,[refChildIndex, 1]);
+    }
+    return (ret);
+};
+
 Node = function(ownerDocument) {
     this.ownerDocument = ownerDocument;
     this.childNodes = new NodeList(ownerDocument, this);
@@ -96,7 +118,7 @@ Node.DOCUMENT_POSITION_CONTAINS		= 0x08;
 Node.DOCUMENT_POSITION_CONTAINED_BY	= 0x10;
 Node.DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC = 0x20;
 __extend__(Node.prototype, {
-    appendChild : function(newChild) {
+    appendChild: function(newChild) {
 	if (!newChild)
 	    return null;
 	if (__ownerDocument__(this).implementation.errorChecking) {
@@ -138,6 +160,32 @@ __extend__(Node.prototype, {
        }
        return newChild;
     },
+    removeChild: function(oldChild) {
+	if(!oldChild)
+            return (null);
+        if (__ownerDocument__(this).implementation.errorChecking &&
+            (this._readonly || oldChild._readonly)) {
+            throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+        }
+        var itemIndex = __findItemIndex__(this.childNodes, oldChild);
+        if (__ownerDocument__(this).implementation.errorChecking &&
+	    itemIndex < 0) {
+            throw(new DOMException(DOMException.NOT_FOUND_ERR));
+        }
+        __removeChild__(this.childNodes, itemIndex);
+        oldChild.parentNode = null;
+        if (oldChild.previousSibling)
+            oldChild.previousSibling.nextSibling = oldChild.nextSibling;
+        else
+            this.firstChild = oldChild.nextSibling;
+        if (oldChild.nextSibling)
+            oldChild.nextSibling.previousSibling = oldChild.previousSibling;
+        else
+            this.lastChild = oldChild.previousSibling;
+        oldChild.previousSibling = null;
+        oldChild.nextSibling = null;
+        return oldChild;
+    },
 });
 
 /*----------------------------------------------------------------------*/
@@ -175,10 +223,73 @@ __extend__(Document.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+var __findNamedItemIndex__ = function(namednodemap, name, isnsmap) {
+    var ret = -1;
+
+    for (var i = 0; i < namednodemap.length; i++) {
+        if (namednodemap[i].localName && name && isnsmap) {
+            if (namednodemap[i].localName.toLowerCase() == name.toLowerCase()) {
+                ret = i;
+                break;
+            }
+        } else {
+            if (namednodemap[i].name && name) {
+                if (namednodemap[i].name.toLowerCase() == name.toLowerCase()) {
+                    ret = i;
+                    break;
+                }
+            }
+        }
+    }
+    return (ret);
+};
+
+NamedNodeMap = function(ownerDocument, parentNode) {
+    NodeList.apply(this, arguments);
+    __setArray__(this, []);
+};
+NamedNodeMap.prototype = new NodeList();
+__extend__(NamedNodeMap.prototype, {
+    getNamedItem : function(name) {
+        var ret = null;
+        var itemIndex = __findNamedItemIndex__(this, name);
+
+        if (itemIndex > -1)
+            ret = this[itemIndex];
+        return (ret);
+    },
+ });
+
+/*----------------------------------------------------------------------*/
+
 Element = function(ownerDocument) {
     Node.apply(this, arguments);
+    this.attributes = new NamedNodeMap(this.ownerDocument, this);
 };
 Element.prototype = new Node();
+__extend__(Element.prototype, {
+    setAttribute: function (name, value) {
+        var attr = this.attributes.getNamedItem(name);
+
+        if (__ownerDocument__(this)) {
+            if (attr === null || attr === undefined)
+                attr = __ownerDocument__(this).createAttribute(name);
+            if (__ownerDocument__(this).implementation.errorChecking) {
+                if (attr._readonly) {
+                    throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+                }
+                if (!__isValidString__(value+'')) {
+                    throw(new DOMException(DOMException.INVALID_CHARACTER_ERR));
+                }
+            }
+            attr.value = value + '';
+            this.attributes.setNamedItem(attr);
+        } else {
+           console.warn('Element has no owner document '+this.tagName+
+                '\n\t cant set attribute ' + name + ' = '+value );
+        }
+    },
+});
 
 /*----------------------------------------------------------------------*/
 
