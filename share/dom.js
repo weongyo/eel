@@ -46,6 +46,45 @@ function __setArray__( target, array ) {
 
 /*----------------------------------------------------------------------*/
 
+var ENVJS = {};
+
+ENVJS.urlsplit = function(url, default_scheme, allow_fragments) {
+    var leftover;
+
+    if (typeof allow_fragments === 'undefined')
+	allow_fragments = true;
+    var fullurl = /^([A-Za-z]+)?(:?\/\/)([0-9.\-A-Za-z]*)(?::(\d+))?(.*)$/;
+    var parse_leftovers = /([^?#]*)?(?:\?([^#]*))?(?:#(.*))?$/;
+    var o = {};
+    var parts = url.match(fullurl);
+    if (parts) {
+	o.scheme = parts[1] || default_scheme || '';
+	o.hostname = parts[3].toLowerCase() || '';
+	o.port = parseInt(parts[4],10) || '';
+	o.netloc = parts[3];
+	if (parts[4])
+	    o.netloc += ':' + parts[4];
+	leftover = parts[5];
+    } else {
+	o.scheme = default_scheme || '';
+	o.netloc = '';
+	o.hostname = '';
+	leftover = url;
+    }
+    o.scheme = o.scheme.toLowerCase();
+    parts = leftover.match(parse_leftovers);
+    o.path =  parts[1] || '';
+    o.query = parts[2] || '';
+    if (allow_fragments) {
+	o.fragment = parts[3] || '';
+    } else {
+	o.fragment = '';
+    }
+    return (o);
+};
+
+/*----------------------------------------------------------------------*/
+
 DOMImplementation = function() {
     this.preserveWhiteSpace = false;
     this.namespaceAware = true;
@@ -580,6 +619,9 @@ HTMLParagraphElement.prototype = new HTMLElement();
 
 HTMLDocument = function(implementation, ownerWindow, referrer) {
     Document.apply(this, arguments);
+    this.referrer = referrer || '';
+    this.baseURI = "about:blank";
+    this.ownerWindow = ownerWindow;
 };
 HTMLDocument.prototype = new Document();
 __extend__(HTMLDocument.prototype, {
@@ -625,6 +667,19 @@ __extend__(HTMLDocument.prototype, {
 	}
 	return (html);
     },
+    get location() {
+        if (this.ownerWindow) {
+            return this.ownerWindow.location;
+        } else {
+            return this.baseURI;
+        }
+    },
+    set location(url) {
+        this.baseURI = url;
+        if (this.ownerWindow) {
+            this.ownerWindow.location = url;
+        }
+    },
 });
 
 /*----------------------------------------------------------------------*/
@@ -633,10 +688,26 @@ Location = function(url, doc, history) {
     var $url = url;
     var $document = doc ? doc : null;
     var $history = history ? history : null;
+    DUMP(ENVJS);
+    var parts = ENVJS.urlsplit($url);
 
     return {
         get href() {
             return $url;
+        },
+        get search() {
+            return (parts.query) ? '?' + parts.query : parts.query;
+        },
+        set search(s) {
+            if (s[0] == '?') {
+                s = s.substr(1);
+            }
+            parts.query = s;
+            $url = Envjs.urlunsplit(parts);
+            if ($history) {
+                $history.add($url, 'search');
+            }
+            this.assign($url);
         },
     }
 };

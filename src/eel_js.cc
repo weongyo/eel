@@ -296,7 +296,8 @@ EJS_new(void)
 	/* Set the context's global */
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
-
+	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
+		printf("[ERROR] JS_DefineFunction() failed.\n");
 	{
 		FILE *fp;
 		double now = TIM_real();
@@ -315,9 +316,6 @@ EJS_new(void)
 		printf("[INFO] Built-in JS compile time: %.3f\n",
 		    TIM_real() - now);
 	}
-
-	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
-		printf("[ERROR] JS_DefineFunction() failed.\n");
 	return ((void *)ep);
 }
 
