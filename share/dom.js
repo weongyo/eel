@@ -160,6 +160,14 @@ __extend__(Node.prototype, {
        }
        return newChild;
     },
+    getElementsByTagName : function(tagname) {
+        var nodelist = new NodeList(__ownerDocument__(this));
+        for (var i = 0; i < this.childNodes.length; i++) {
+            __getElementsByTagNameRecursive__(this.childNodes.item(i),
+                                              tagname, nodelist);
+        }
+        return (nodelist);
+    },
     removeChild: function(oldChild) {
 	if(!oldChild)
             return (null);
@@ -190,6 +198,38 @@ __extend__(Node.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+var $events = [{}];
+
+function __addEventListener__(target, type, fn, phase){
+    phase = !!phase?"CAPTURING":"BUBBLING";
+    if (!target.uuid)
+        target.uuid = $events.length+'';
+    if (!$events[target.uuid])
+        $events[target.uuid] = {};
+    if (!$events[target.uuid][type]) {
+        $events[target.uuid][type] = {
+            CAPTURING : [],
+            BUBBLING : []
+        };
+    }
+    if ($events[target.uuid][type][phase].indexOf(fn) < 0 )
+        $events[target.uuid][type][phase].push(fn);
+}
+
+EventTarget = function(){};
+EventTarget.prototype.addEventListener = function(type, fn, phase){
+    __addEventListener__(this, type, fn, phase);
+};
+EventTarget.prototype.removeEventListener = function(type, fn){
+    DUMP(this);
+};
+EventTarget.prototype.dispatchEvent = function(event, bubbles){
+    DUMP(this);
+};
+__extend__(Node.prototype, EventTarget.prototype);
+
+/*----------------------------------------------------------------------*/
+
 NodeList = function(ownerDocument, parentNode) {
     this.length = 0;
     this.parentNode = parentNode;
@@ -200,6 +240,36 @@ NodeList = function(ownerDocument, parentNode) {
 
 /*----------------------------------------------------------------------*/
 
+Attr = function(ownerDocument) {
+    Node.apply(this, arguments);
+    this.ownerElement = null;
+};
+Attr.prototype = new Node();
+__extend__(Attr.prototype, {
+});
+
+/*----------------------------------------------------------------------*/
+
+DocumentFragment = function(ownerDocument) {
+    Node.apply(this, arguments);
+    this.nodeName  = "#document-fragment";
+};
+DocumentFragment.prototype = new Node();
+__extend__(DocumentFragment.prototype,{
+});
+
+/*----------------------------------------------------------------------*/
+
+var re_validName = /^[a-zA-Z_:][a-zA-Z0-9\.\-_:]*$/;
+function __isValidName__(name) {
+    return name.match(re_validName);
+}
+
+var re_invalidStringChars = /\x01|\x02|\x03|\x04|\x05|\x06|\x07|\x08|\x0B|\x0C|\x0E|\x0F|\x10|\x11|\x12|\x13|\x14|\x15|\x16|\x17|\x18|\x19|\x1A|\x1B|\x1C|\x1D|\x1E|\x1F|\x7F/;
+function __isValidString__(name) {
+    return (name.search(re_invalidStringChars) < 0);
+}
+
 Document = function(implementation, docParentWindow) {
     Node.apply(this, arguments);
     this.implementation = implementation;
@@ -207,6 +277,19 @@ Document = function(implementation, docParentWindow) {
 };
 Document.prototype = new Node();
 __extend__(Document.prototype, {
+    createAttribute: function(name) {
+        if (__ownerDocument__(this).implementation.errorChecking &&
+            (!__isValidName__(name))) {
+            throw(new DOMException(DOMException.INVALID_CHARACTER_ERR));
+        }
+        var node = new Attr(this);
+        node.nodeName = name;
+        return (node);
+    },
+    createDocumentFragment: function() {
+        var node = new DocumentFragment(this);
+        return (node);
+    },
     get documentElement(){
 	var i, length = this.childNodes ? this.childNodes.length : 0;
 
@@ -258,6 +341,38 @@ __extend__(NamedNodeMap.prototype, {
             ret = this[itemIndex];
         return (ret);
     },
+    setNamedItem : function(arg) {
+	if (__ownerDocument__(this).implementation.errorChecking) {
+            if (this.ownerDocument != arg.ownerDocument) {
+		throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
+            }
+            if (this._readonly ||
+		(this.parentNode && this.parentNode._readonly)) {
+		throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+            }
+            if (arg.ownerElement && (arg.ownerElement != this.parentNode)) {
+		throw(new DOMException(DOMException.INUSE_ATTRIBUTE_ERR));
+            }
+	}
+	var itemIndex = __findNamedItemIndex__(this, arg.name);
+	var ret = null;
+
+	if (itemIndex > -1) {
+            ret = this[itemIndex];
+            if (__ownerDocument__(this).implementation.errorChecking &&
+		ret._readonly) {
+		throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+            } else {
+		this[itemIndex] = arg;
+		this[arg.name.toLowerCase()] = arg;
+            }
+	} else {
+            Array.prototype.push.apply(this, [arg]);
+            this[arg.name] = arg;
+	}
+	arg.ownerElement = this.parentNode;
+	return (ret);
+    },
  });
 
 /*----------------------------------------------------------------------*/
@@ -278,15 +393,15 @@ __extend__(Element.prototype, {
                 if (attr._readonly) {
                     throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
                 }
-                if (!__isValidString__(value+'')) {
+                if (!__isValidString__(value + '')) {
                     throw(new DOMException(DOMException.INVALID_CHARACTER_ERR));
                 }
             }
             attr.value = value + '';
             this.attributes.setNamedItem(attr);
         } else {
-           console.warn('Element has no owner document '+this.tagName+
-                '\n\t cant set attribute ' + name + ' = '+value );
+           console.warn('Element has no owner document ' + this.tagName +
+                '\n\t cant set attribute ' + name + ' = ' + value );
         }
     },
 });
@@ -383,14 +498,15 @@ Window = function(scope, parent, opener) {
     });
     var $htmlImplementation = new DOMImplementation();
     var $document = new HTMLDocument($htmlImplementation, scope);
+    __extend__(scope, EventTarget.prototype);
     return __extend__(scope, {
-	get document(){
+	get document() {
 	    return $document;
 	},
-	set document(doc){
+	set document(doc) {
 	    $document = doc;
 	},
-	get window(){
+	get window() {
 	    return this;
 	},
      });
