@@ -605,7 +605,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_newroot(&wrk, "https://kldp.org");
+	REQ_newroot(&wrk, "http://www.moicle.com/");
 
 	while (1) {
 		COT_ticks(&wrk.cb);

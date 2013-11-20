@@ -383,6 +383,14 @@ Element = function(ownerDocument) {
 };
 Element.prototype = new Node();
 __extend__(Element.prototype, {
+    getAttribute: function(name) {
+        var ret = null;
+        var attr = this.attributes.getNamedItem(name);
+
+        if (attr)
+            ret = attr.value;
+        return (ret);
+    },
     setAttribute: function (name, value) {
         var attr = this.attributes.getNamedItem(name);
 
@@ -477,12 +485,34 @@ History = function(owner) {
 
 /*----------------------------------------------------------------------*/
 
+CSS2Properties = function(element) {
+    return {
+	get backgroundColor() {
+	    return ('rgb(0,0,0)');
+	},
+    };
+};
+
+/*----------------------------------------------------------------------*/
+
 var  __DOMElement__ = Element;
 
 HTMLElement = function(ownerDocument) {
     __DOMElement__.apply(this, arguments);
 };
 HTMLElement.prototype = new Element();
+__extend__(HTMLElement.prototype, {
+    get style(){
+        return this.getAttribute('style') || new CSS2Properties(this);
+    },
+});
+
+/*----------------------------------------------------------------------*/
+
+HTMLAnchorElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLAnchorElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
@@ -519,6 +549,35 @@ __extend__(HTMLHtmlElement.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+var HTMLInputCommon = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLInputCommon.prototype = new HTMLElement();
+
+var HTMLTypeValueInputs = function(ownerDocument) {
+    HTMLInputCommon.apply(this, arguments);
+};
+HTMLTypeValueInputs.prototype = new HTMLInputCommon();
+
+var HTMLInputAreaCommon = function(ownerDocument) {
+    HTMLTypeValueInputs.apply(this, arguments);
+};
+HTMLInputAreaCommon.prototype = new HTMLTypeValueInputs();
+
+HTMLInputElement = function(ownerDocument) {
+    HTMLInputAreaCommon.apply(this, arguments);
+};
+HTMLInputElement.prototype = new HTMLInputAreaCommon();
+
+/*----------------------------------------------------------------------*/
+
+HTMLParagraphElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLParagraphElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLDocument = function(implementation, ownerWindow, referrer) {
     Document.apply(this, arguments);
 };
@@ -529,6 +588,9 @@ __extend__(HTMLDocument.prototype, {
 
 	tagName = tagName.toUpperCase();
 	switch (tagName) {
+        case "A":
+            node = new HTMLAnchorElement(this);
+	    break;
         case "DIV":
             node = new HTMLDivElement(this);
 	    break;
@@ -540,6 +602,12 @@ __extend__(HTMLDocument.prototype, {
 	    break;
 	case "HTML":
 	    node = new HTMLHtmlElement(this);
+	    break;
+        case "INPUT":
+            node = new HTMLInputElement(this);
+	    break;
+        case "P":
+            node = new HTMLParagraphElement(this);
 	    break;
 	default:
 	    DUMP(tagName);
@@ -576,19 +644,20 @@ Location = function(url, doc, history) {
 /*----------------------------------------------------------------------*/
 
 Navigator = function() {
-
     return {
         get appCodeName() {
-	    DUMP(this);
+	    return ("Mozilla");
         },
         get appName() {
-	    DUMP(this);
+	    return ("Netscape");
         },
         get appVersion() {
-	    DUMP(this);
+	    return ("5.0 (X11; Linux x86_64) AppleWebKit/537.36" +
+		    " (KHTML, like Gecko) Ubuntu Chromium/28.0.1500.71" +
+		    " Chrome/28.0.1500.71 Safari/537.36");
         },
         get cookieEnabled() {
-	    DUMP(this);
+	    return (true);
         },
         get mimeTypes() {
 	    DUMP(this);
@@ -600,10 +669,10 @@ Navigator = function() {
 	    DUMP(this);
         },
         get userAgent() {
-	    DUMP(this);
-        },
-        javaEnabled : function() {
-	    DUMP(this);
+	    return ("Mozilla/5.0 (X11; Linux x86_64)" +
+		    " AppleWebKit/537.36 (KHTML, like Gecko)" +
+		    " Ubuntu Chromium/28.0.1500.71 Chrome/28.0.1500.71" +
+		    " Safari/537.36");
         }
     };
 };
