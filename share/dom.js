@@ -207,6 +207,72 @@ __extend__(Node.prototype, {
         }
         return (nodelist);
     },
+    insertBefore : function(newChild, refChild) {
+        var prevNode;
+
+        if (newChild == null)
+            return (newChild);
+        if (refChild == null) {
+            this.appendChild(newChild);
+            return (this.newChild);
+        }
+        if (__ownerDocument__(this).implementation.errorChecking) {
+            if (this._readonly) {
+                throw(new DOMException(DOMException.NO_MODIFICATION_ALLOWED_ERR));
+            }
+            if (__ownerDocument__(this) != __ownerDocument__(newChild)) {
+                throw(new DOMException(DOMException.WRONG_DOCUMENT_ERR));
+            }
+            if (__isAncestor__(this, newChild)) {
+                throw(new DOMException(DOMException.HIERARCHY_REQUEST_ERR));
+            }
+        }
+        if (refChild) {
+            var itemIndex = __findItemIndex__(this.childNodes, refChild);
+            if (__ownerDocument__(this).implementation.errorChecking &&
+		(itemIndex < 0)) {
+                throw(new DOMException(DOMException.NOT_FOUND_ERR));
+            }
+            var newChildParent = newChild.parentNode;
+            if (newChildParent)
+                newChildParent.removeChild(newChild);
+            __insertBefore__(this.childNodes, newChild, itemIndex);
+            prevNode = refChild.previousSibling;
+            if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+                if (newChild.childNodes.length > 0) {
+                    for (var ind = 0; ind < newChild.childNodes.length; ind++)
+                        newChild.childNodes[ind].parentNode = this;
+                    refChild.previousSibling =
+			newChild.childNodes[newChild.childNodes.length-1];
+                }
+            } else {
+                newChild.parentNode = this;
+                refChild.previousSibling = newChild;
+            }
+        } else {
+            prevNode = this.lastChild;
+            this.appendChild(newChild);
+        }
+        if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+            if (newChild.childNodes.length > 0) {
+                if (prevNode)
+                    prevNode.nextSibling = newChild.childNodes[0];
+                else
+                    this.firstChild = newChild.childNodes[0];
+                newChild.childNodes[0].previousSibling = prevNode;
+                newChild.childNodes[newChild.childNodes.length-1].nextSibling =
+		    refChild;
+            }
+        } else {
+            if (prevNode)
+                prevNode.nextSibling = newChild;
+            else
+                this.firstChild = newChild;
+            newChild.previousSibling = prevNode;
+            newChild.nextSibling     = refChild;
+        }
+        return (newChild);
+    },
     removeChild: function(oldChild) {
 	if(!oldChild)
             return (null);
