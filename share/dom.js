@@ -121,6 +121,35 @@ var __findItemIndex__ = function(nodelist, node) {
     return (ret);
 };
 
+var __getElementsByTagNameRecursive__ = function (elem, tagname, nodeList) {
+    if (elem.nodeType == Node.ELEMENT_NODE ||
+	elem.nodeType == Node.DOCUMENT_NODE) {
+        if (elem.nodeType !== Node.DOCUMENT_NODE &&
+            ((elem.nodeName.toUpperCase() == tagname.toUpperCase()) ||
+             (tagname == "*")) ) {
+            __appendChild__(nodeList, elem);
+        }
+        for (var i = 0; i < elem.childNodes.length; i++) {
+            nodeList =
+		__getElementsByTagNameRecursive__(elem.childNodes.item(i),
+						  tagname, nodeList);
+        }
+    }
+
+    return (nodeList);
+};
+
+var __insertBefore__ = function(nodelist, newChild, refChildIndex) {
+    if ((refChildIndex >= 0) && (refChildIndex <= nodelist.length)) {
+        if (newChild.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+            Array.prototype.splice.apply(nodelist,
+                [refChildIndex, 0].concat(newChild.childNodes.toArray()));
+        } else {
+            Array.prototype.splice.apply(nodelist,[refChildIndex, 0, newChild]);
+        }
+    }
+};
+
 var __removeChild__ = function(nodelist, refChildIndex) {
     var ret = null;
 
@@ -403,6 +432,19 @@ __extend__(Document.prototype, {
 		return this.childNodes[i];
 	}
 	return null;
+    },
+    getElementById : function(elementId) {
+        var retNode = null,
+            node;
+        var all = this.getElementsByTagName('*');
+        for (var i=0; i < all.length; i++) {
+            node = all[i];
+            if (node.id == elementId) {
+                retNode = node;
+                break;
+            }
+        }
+        return (retNode);
     },
     get nodeType() {
 	return Node.DOCUMENT_NODE;
