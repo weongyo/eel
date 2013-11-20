@@ -680,6 +680,18 @@ __extend__(HTMLDocument.prototype, {
             this.ownerWindow.location = url;
         }
     },
+    open : function() {
+        if (!this._writebuffer)
+            this._writebuffer = [];
+    },
+    write: function(htmlstring) {
+        this.open();
+        this._writebuffer.push(htmlstring);
+    },
+    writeln: function(htmlstring) {
+        this.open();
+        this._writebuffer.push(htmlstring + '\n');
+    }
 });
 
 /*----------------------------------------------------------------------*/
@@ -688,7 +700,6 @@ Location = function(url, doc, history) {
     var $url = url;
     var $document = doc ? doc : null;
     var $history = history ? history : null;
-    DUMP(ENVJS);
     var parts = ENVJS.urlsplit($url);
 
     return {
