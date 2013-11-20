@@ -27,6 +27,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <time.h>
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
@@ -259,11 +260,19 @@ static JSClass global_class = {
 
 /*----------------------------------------------------------------------*/
 
+static double
+TIM_real(void)
+{
+	struct timespec ts;
+
+	assert(clock_gettime(CLOCK_REALTIME, &ts) == 0);
+	return (ts.tv_sec + 1e-9 * ts.tv_nsec);
+}
+
 void *
 EJS_new(void)
 {
 	struct ejs_private *ep;
-	FILE *fp;
 	JSBool ret;
 	JSScript *script;
 	uint32_t oldopts;
@@ -288,16 +297,24 @@ EJS_new(void)
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
 
-	fp = fopen(filename, "r");
-	AN(fp);
-        oldopts = JS_GetOptions(ep->cx);
-	JS_SetOptions(ep->cx, oldopts | JSOPTION_COMPILE_N_GO |
-	    JSOPTION_NO_SCRIPT_RVAL);
-        script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename, fp);
-        JS_SetOptions(ep->cx, oldopts);
-	if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
-		printf("[ERROR] JS_ExecuteScript() failed.\n");
-	fclose(fp);
+	{
+		FILE *fp;
+		double now = TIM_real();
+
+		fp = fopen(filename, "r");
+		AN(fp);
+		oldopts = JS_GetOptions(ep->cx);
+		JS_SetOptions(ep->cx, oldopts | JSOPTION_COMPILE_N_GO |
+		    JSOPTION_NO_SCRIPT_RVAL);
+		script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename,
+		    fp);
+		JS_SetOptions(ep->cx, oldopts);
+		if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
+			printf("[ERROR] JS_ExecuteScript() failed.\n");
+		fclose(fp);
+		printf("[INFO] Built-in JS compile time: %.3f\n",
+		    TIM_real() - now);
+	}
 
 	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
 		printf("[ERROR] JS_DefineFunction() failed.\n");
