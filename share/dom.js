@@ -408,6 +408,75 @@ __extend__(Element.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+History = function(owner) {
+    var $current = 0,
+        $history = [null],
+        $owner = owner;
+
+    return {
+        go : function(target) {
+            if (typeof target === "number") {
+                target = $current + target;
+                if (target > -1 && target < $history.length){
+                    if ($history[target].type === "hash") {
+                        if ($owner.location) {
+                            $owner.location.hash = $history[target].value;
+                        }
+                    } else {
+                        if ($owner.location) {
+                            $owner.location = $history[target].value;
+                        }
+                    }
+                    $current = target;
+                }
+            } else {
+                //TODO: walk through the history and find the 'best match'?
+            }
+        },
+        get length() {
+            return $history.length;
+        },
+        back : function(count) {
+            if (count) {
+                this.go(-count);
+            } else {
+                this.go(-1);
+            }
+        },
+        get current() {
+            return this.item($current);
+        },
+        get previous() {
+            return this.item($current-1);
+        },
+        forward : function(count) {
+            if (count) {
+                this.go(count);
+            } else {
+                this.go(1);
+            }
+        },
+        item: function(idx) {
+            if (idx >= 0 && idx < $history.length) {
+                return $history[idx];
+            } else {
+                return null;
+            }
+        },
+        add: function(newLocation, type) {
+            if (newLocation !== $history[$current]) {
+                $history.slice(0, $current);
+                $history.push({
+                    type: type || 'href',
+                    value: newLocation
+                });
+            }
+        }
+    };
+};
+
+/*----------------------------------------------------------------------*/
+
 var  __DOMElement__ = Element;
 
 HTMLElement = function(ownerDocument) {
@@ -492,12 +561,28 @@ __extend__(HTMLDocument.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+Location = function(url, doc, history) {
+    var $url = url;
+    var $document = doc ? doc : null;
+    var $history = history ? history : null;
+
+    return {
+        get href() {
+            return $url;
+        },
+    }
+};
+
+/*----------------------------------------------------------------------*/
+
 Window = function(scope, parent, opener) {
     scope.__defineGetter__('window', function () {
 	return scope;
     });
     var $htmlImplementation = new DOMImplementation();
     var $document = new HTMLDocument($htmlImplementation, scope);
+    var $history = new History();
+    var $location = new Location('about:blank', $document, $history);
     __extend__(scope, EventTarget.prototype);
     return __extend__(scope, {
 	get document() {
@@ -506,6 +591,19 @@ Window = function(scope, parent, opener) {
 	set document(doc) {
 	    $document = doc;
 	},
+        get location() {
+            return $location;
+        },
+        set location(uri) {
+            uri = Envjs.uri(uri);
+            if ($location.href == uri) {
+                $location.reload();
+            } else if ($location.href == 'about:blank') {
+                $location.assign(uri);
+            } else {
+                $location.replace(uri);
+            }
+        },
 	get window() {
 	    return this;
 	},
