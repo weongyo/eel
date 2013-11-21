@@ -605,7 +605,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_newroot(&wrk, "http://www.daum.net/");
+	REQ_newroot(&wrk, "https://www.gabia.com/");
 
 	while (1) {
 		COT_ticks(&wrk.cb);

@@ -101,10 +101,9 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 	/* report->linebuf usually ends with a newline. */
 	n = strlen(report->linebuf);
 	fprintf(stderr, ":\n%s%s%s%s",
-            prefix,
-            report->linebuf,
-            (n > 0 && report->linebuf[n-1] == '\n') ? "" : "\n",
-            prefix);
+	    prefix, report->linebuf,
+	    (n > 0 && report->linebuf[n-1] == '\n') ? "" : "\n",
+	    prefix);
 	n = report->tokenptr - report->linebuf;
 	for (i = j = 0; i < n; i++) {
 		if (report->linebuf[i] == '\t') {
@@ -360,5 +359,6 @@ EJS_init(void)
 	ret = PR_SetThreadPrivate(gStackBaseThreadIndex, &stackDummy);
 	if (ret == PR_FAILURE)
 		return (-1);
+	JS_SetCStringsAreUTF8();
 	return (0);
 }
