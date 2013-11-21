@@ -1240,6 +1240,7 @@ Window = function(scope, parent, opener) {
     var $history = new History();
     var $location = new Location('about:blank', $document, $history);
     var $navigator = new Navigator();
+    var $parent = parent;
     __extend__(scope, EventTarget.prototype);
     return __extend__(scope, {
         alert : function(message){
@@ -1266,6 +1267,9 @@ Window = function(scope, parent, opener) {
         },
         get navigator() {
             return $navigator;
+        },
+        get parent(){
+            return $parent;
         },
 	setInterval: function(fn, time) {
 	    DUMP(fn);
