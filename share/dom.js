@@ -371,6 +371,15 @@ NodeList = function(ownerDocument, parentNode) {
     this._readonly = false;
     __setArray__(this, []);
 };
+__extend__(NodeList.prototype, {
+    item : function(index) {
+        var ret = null;
+        if ((index >= 0) && (index < this.length)) {
+            ret = this[index];
+        }
+        return (ret);
+    },
+});
 
 /*----------------------------------------------------------------------*/
 
@@ -380,6 +389,28 @@ Attr = function(ownerDocument) {
 };
 Attr.prototype = new Node();
 __extend__(Attr.prototype, {
+});
+
+/*----------------------------------------------------------------------*/
+
+CharacterData = function(ownerDocument) {
+    Node.apply(this, arguments);
+};
+CharacterData.prototype = new Node();
+__extend__(CharacterData.prototype,{
+});
+
+/*----------------------------------------------------------------------*/
+
+Comment = function(ownerDocument) {
+    CharacterData.apply(this, arguments);
+    this.nodeName  = "#comment";
+};
+Comment.prototype = new CharacterData();
+__extend__(Comment.prototype, {
+    get nodeType(){
+        return Node.COMMENT_NODE;
+    },
 });
 
 /*----------------------------------------------------------------------*/
@@ -418,6 +449,11 @@ __extend__(Document.prototype, {
         }
         var node = new Attr(this);
         node.nodeName = name;
+        return (node);
+    },
+    createComment: function(data) {
+        var node = new Comment(this);
+        node.data = data;
         return (node);
     },
     createDocumentFragment: function() {
@@ -870,7 +906,7 @@ Navigator = function() {
 /*----------------------------------------------------------------------*/
 
 Window = function(scope, parent, opener) {
-    scope.__defineGetter__('window', function () {
+    scope.__defineGetter__('window', function() {
 	return scope;
     });
     var $htmlImplementation = new DOMImplementation();
@@ -902,6 +938,10 @@ Window = function(scope, parent, opener) {
         get navigator() {
             return $navigator;
         },
+	setInterval: function(fn, time) {
+	},
+	setTimeout: function(fn, time) {
+	},
 	get window() {
 	    return this;
 	},
