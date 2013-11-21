@@ -53,6 +53,29 @@ function __extend__(a, b) {
     return a;
 }
 
+function __cookieString__(cookies, url) {
+    var cookieString = "",
+        domain, 
+        path,
+        name,
+        i=0;
+    for (domain in cookies) {
+        if (domain == "" || domain == url.hostname) {
+            for (path in cookies[domain]) {
+                if (path == "/" || url.path.indexOf(path) > -1) {
+                    for (name in cookies[domain][path]) {
+                        cookieString += 
+                            ((i++ > 0)?'; ':'') +
+                            name + "=" + 
+                            cookies[domain][path][name].value;
+                    }
+                }
+            }
+        }
+    }
+    return cookieString;
+};
+
 function __mergeCookie__(target, cookie, properties){
     var name, now;
     if (!target[cookie.domain]) {
@@ -623,7 +646,7 @@ __extend__(Node.prototype, {
         return (newChild);
     },
     removeChild: function(oldChild) {
-	if(!oldChild)
+	if (!oldChild)
             return (null);
         if (__ownerDocument__(this).implementation.errorChecking &&
             (this._readonly || oldChild._readonly)) {
@@ -1052,6 +1075,13 @@ __extend__(HTMLHtmlElement.prototype, {
 
 /*----------------------------------------------------------------------*/
 
+HTMLImageElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLImageElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 var HTMLInputCommon = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
@@ -1129,13 +1159,31 @@ __extend__(HTMLDocument.prototype, {
     },
     get documentElement() {
 	var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
-	if( html === null){
+	if ( html === null){
 	    html = this.createElement('html');
 	    this.appendChild(html);
 	    html.appendChild(this.createElement('head'));
 	    html.appendChild(this.createElement('body'));
 	}
 	return (html);
+    },
+    get domain(){
+        var HOSTNAME = new RegExp('\/\/([^\:\/]+)'),
+        matches = HOSTNAME.exec(this.baseURI);
+        return matches && matches.length > 1 ? matches[1] : "";
+    },
+    set domain(value){
+        var i,
+        domainParts = this.domain.split('.').reverse(),
+        newDomainParts = value.split('.').reverse();
+        if (newDomainParts.length > 1){
+            for (i = 0;i < newDomainParts.length; i++) {
+                if (!(newDomainParts[i] === domainParts[i])){
+                    return;
+                }
+            }
+            this.baseURI = this.baseURI.replace(domainParts.join('.'), value);
+        }
     },
     get location() {
         if (this.ownerWindow) {
@@ -1163,6 +1211,16 @@ __extend__(HTMLDocument.prototype, {
         this._writebuffer.push(htmlstring + '\n');
     }
 });
+
+/*----------------------------------------------------------------------*/
+
+Image = function(width, height) {
+    HTMLElement.apply(this, [document]);
+    this.width = parseInt(width, 10) || 0;
+    this.height = parseInt(height, 10) || 0;
+    this.nodeName = 'IMG';
+};
+Image.prototype = new HTMLImageElement();
 
 /*----------------------------------------------------------------------*/
 
@@ -1210,6 +1268,9 @@ Navigator = function() {
         },
         get cookieEnabled() {
 	    return (true);
+        },
+        javaEnabled: function() {
+            return (true);
         },
         get mimeTypes() {
 	    DUMP(this);
@@ -1271,7 +1332,10 @@ Window = function(scope, parent, opener) {
         get parent(){
             return $parent;
         },
-	setInterval: function(fn, time) {
+        get self(){
+            return scope;
+        },
+ 	setInterval: function(fn, time) {
 	    DUMP(fn);
 	},
 	setTimeout: function(fn, time) {

@@ -568,6 +568,8 @@ REQ_final(struct req *req)
 	REQ_free(req);
 }
 
+static const char *starturl = "http://www.test.com/";
+
 static void *
 core_main(void *arg)
 {
@@ -605,7 +607,7 @@ core_main(void *arg)
 	assert(mcode == CURLM_OK);
 	wrk.curlm = cm;
 
-	REQ_newroot(&wrk, "https://www.kbstar.com/");
+	REQ_newroot(&wrk, starturl);
 
 	while (1) {
 		COT_ticks(&wrk.cb);
@@ -653,10 +655,13 @@ core_main(void *arg)
 }
 
 int
-main(void)
+main(int argc, char *argv[])
 {
 	pthread_t tid;
 	int i, ret;
+
+	if (argc > 1)
+		starturl = argv[1];
 
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
