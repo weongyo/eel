@@ -1595,3 +1595,4 @@ Window = function(scope, parent, opener) {
 };
 
 new Window(this, this);
+window.location = ENVJS.getURL();

@@ -528,7 +528,7 @@ REQ_main(struct req *req)
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_new();
+		req->scriptpriv = EJS_new(req->url);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,

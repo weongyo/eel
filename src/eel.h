@@ -10,7 +10,7 @@ extern "C" {
 
 /* eel_js.cc */
 int	EJS_init(void);
-void *	EJS_new(void);
+void *	EJS_new(const char *url);
 void	EJS_free(void *arg);
 void	EJS_eval(void *arg, const char *filename, unsigned int line,
 	    const char *src, ssize_t len);

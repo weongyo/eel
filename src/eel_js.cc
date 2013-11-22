@@ -44,6 +44,7 @@ static size_t gStackChunkSize = 8192;
 struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
+	const char		*url;
 	JSRuntime		*rt;
 	JSContext		*cx;
 	JSObject		*global;
@@ -139,7 +140,6 @@ NewContext(JSRuntime *rt)
 	if (!cx)
 		return (NULL);
 
-	JS_SetContextPrivate(cx, NULL);
 	JS_SetErrorReporter(cx, my_ErrorReporter);
 	JS_SetVersion(cx, JSVERSION_LATEST);
 	JS_SetOperationCallback(cx, ShellOperationCallback);
@@ -268,14 +268,30 @@ TIM_real(void)
 	return (ts.tv_sec + 1e-9 * ts.tv_nsec);
 }
 
+static JSBool
+envjs_getURL(JSContext *cx, unsigned int argc, jsval *vp)
+{
+	struct ejs_private *ep;
+	JSString *val;
+
+	ep = (struct ejs_private *)JS_GetContextPrivate(cx);
+	AN(ep);
+	val = JS_NewStringCopyZ(cx, ep->url);
+	AN(val);
+	JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(val));
+	return JS_TRUE;
+}
+
 void *
-EJS_new(void)
+EJS_new(const char *url)
 {
 	struct ejs_private *ep;
 	JSBool ret;
+	JSFunction *func;
 	JSScript *script;
+	jsval envjs;
 	uint32_t oldopts;
-	const char *filename = "/opt/eel/1.0.0/share/dom.js";
+	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
 	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
 	AN(ep);
@@ -286,6 +302,7 @@ EJS_new(void)
 	JS_SetNativeStackQuota(ep->rt, gMaxStackSize);
 	ep->cx = NewContext(ep->rt);
 	AN(ep->cx);
+	JS_SetContextPrivate(ep->cx, ep);
 	JS_SetOptions(ep->cx, JS_GetOptions(ep->cx) | JSOPTION_VAROBJFIX);
 
 	JSAutoRequest ar(ep->cx);
@@ -315,6 +332,13 @@ EJS_new(void)
 		printf("[INFO] Built-in JS compile time: %.3f\n",
 		    TIM_real() - now);
 	}
+	ret = JS_GetProperty(ep->cx, ep->global, "ENVJS", &envjs);
+	assert(ret == JS_TRUE);
+	assert(JSVAL_IS_PRIMITIVE(envjs) == JS_FALSE);
+	func = JS_DefineFunction(ep->cx, JSVAL_TO_OBJECT(envjs), "getURL",
+	    &envjs_getURL, 0, 0);
+	assert(func != NULL);
+
 	return ((void *)ep);
 }
 
