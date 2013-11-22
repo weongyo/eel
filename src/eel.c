@@ -458,7 +458,7 @@ static void
 search_for_links(struct req *req, GumboNode* node)
 {
 	struct req *child;
-	GumboAttribute *href, *src;
+	GumboAttribute *href, *onclick, *src;
 	GumboNode *text;
 	GumboVector *children;
 	int i, ret;
@@ -466,6 +466,9 @@ search_for_links(struct req *req, GumboNode* node)
 
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
+	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
+	if (onclick != NULL)
+		printf("ONCLICK = %s\n", onclick->value);
 	switch (node->v.element.tag) {
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
@@ -525,7 +528,7 @@ REQ_main(struct req *req)
 	assert(code == CURLE_OK);
 	printf("%s: content-type %s\n", __func__, content_type);
 
-	if (strcasestr(content_type, "text/html")) {
+	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
 		req->scriptpriv = EJS_new();
 		AN(req->scriptpriv);

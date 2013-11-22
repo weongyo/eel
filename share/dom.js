@@ -76,7 +76,7 @@ function __cookieString__(cookies, url) {
     return cookieString;
 };
 
-function __mergeCookie__(target, cookie, properties){
+function __mergeCookie__(target, cookie, properties) {
     var name, now;
     if (!target[cookie.domain]) {
         target[cookie.domain] = {};
@@ -98,7 +98,7 @@ function __mergeCookie__(target, cookie, properties){
     }
 };
 
-function __trim__( str ){
+function __trim__( str ) {
     return (str || "").replace(/^\s+|\s+$/g,"");
 }
 
@@ -326,7 +326,7 @@ ENVJS.cookies = {
     temporary: {}
 };
 
-ENVJS.setCookie = function(url, cookie){
+ENVJS.setCookie = function(url, cookie) {
     var i,
         index,
         name,
@@ -344,7 +344,7 @@ ENVJS.setCookie = function(url, cookie){
     cookie['path'] = url.path||'/';
     for (i = 0;i < attrs.length; i++) {
         index = attrs[i].indexOf("=");
-        if (index > -1){
+        if (index > -1) {
             name = __trim__(attrs[i].slice(0,index));
             value = __trim__(attrs[i].slice(index + 1));
             if (name == 'max-age') {
@@ -369,7 +369,7 @@ ENVJS.setCookie = function(url, cookie){
     }
 };
 
-ENVJS.getCookies = function(url){
+ENVJS.getCookies = function(url) {
     var persisted;
     url = ENVJS.urlsplit(url);
     if (!__cookies__) {
@@ -677,7 +677,7 @@ __extend__(Node.prototype, {
 
 var $events = [{}];
 
-function __addEventListener__(target, type, fn, phase){
+function __addEventListener__(target, type, fn, phase) {
     phase = !!phase?"CAPTURING":"BUBBLING";
     if (!target.uuid)
         target.uuid = $events.length+'';
@@ -694,13 +694,13 @@ function __addEventListener__(target, type, fn, phase){
 }
 
 EventTarget = function() {};
-EventTarget.prototype.addEventListener = function(type, fn, phase){
+EventTarget.prototype.addEventListener = function(type, fn, phase) {
     __addEventListener__(this, type, fn, phase);
 };
-EventTarget.prototype.removeEventListener = function(type, fn){
+EventTarget.prototype.removeEventListener = function(type, fn) {
     DUMP(this);
 };
-EventTarget.prototype.dispatchEvent = function(event, bubbles){
+EventTarget.prototype.dispatchEvent = function(event, bubbles) {
     DUMP(this);
 };
 __extend__(Node.prototype, EventTarget.prototype);
@@ -751,7 +751,7 @@ Comment = function(ownerDocument) {
 };
 Comment.prototype = new CharacterData();
 __extend__(Comment.prototype, {
-    get nodeType(){
+    get nodeType() {
         return Node.COMMENT_NODE;
     },
 });
@@ -951,7 +951,7 @@ History = function(owner) {
         go : function(target) {
             if (typeof target === "number") {
                 target = $current + target;
-                if (target > -1 && target < $history.length){
+                if (target > -1 && target < $history.length) {
                     if ($history[target].type === "hash") {
                         if ($owner.location) {
                             $owner.location.hash = $history[target].value;
@@ -1028,7 +1028,7 @@ HTMLElement = function(ownerDocument) {
 };
 HTMLElement.prototype = new Element();
 __extend__(HTMLElement.prototype, {
-    get style(){
+    get style() {
         return this.getAttribute('style') || new CSS2Properties(this);
     },
 });
@@ -1104,10 +1104,34 @@ HTMLInputElement.prototype = new HTMLInputAreaCommon();
 
 /*----------------------------------------------------------------------*/
 
+HTMLOptionElement = function(ownerDocument) {
+    HTMLInputCommon.apply(this, arguments);
+    this._selected = null;
+};
+HTMLOptionElement.prototype = new HTMLInputCommon();
+
+/*----------------------------------------------------------------------*/
+
 HTMLParagraphElement = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
 HTMLParagraphElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLSelectElement = function(ownerDocument) {
+    HTMLTypeValueInputs.apply(this, arguments);
+    this._oldIndex = -1;
+};
+HTMLSelectElement.prototype = new HTMLTypeValueInputs();
+
+/*----------------------------------------------------------------------*/
+
+HTMLTextAreaElement = function(ownerDocument) {
+    HTMLInputAreaCommon.apply(this, arguments);
+    this._rawvalue = null;
+};
+HTMLTextAreaElement.prototype = new HTMLInputAreaCommon();
 
 /*----------------------------------------------------------------------*/
 
@@ -1119,10 +1143,10 @@ HTMLDocument = function(implementation, ownerWindow, referrer) {
 };
 HTMLDocument.prototype = new Document();
 __extend__(HTMLDocument.prototype, {
-    get cookie(){
+    get cookie() {
         return ENVJS.getCookies(this.location + '');
     },
-    set cookie(cookie){
+    set cookie(cookie) {
         return ENVJS.setCookie(this.location + '', cookie);
     },
     createElement: function(tagName) {
@@ -1148,8 +1172,17 @@ __extend__(HTMLDocument.prototype, {
         case "INPUT":
             node = new HTMLInputElement(this);
 	    break;
+        case "OPTION":
+            node = new HTMLOptionElement(this);
+	    break;
         case "P":
             node = new HTMLParagraphElement(this);
+	    break;
+        case "SELECT":
+            node = new HTMLSelectElement(this);
+	    break;
+        case "TEXTAREA":
+            node = new HTMLTextAreaElement(this);
 	    break;
 	default:
 	    DUMP(tagName);
@@ -1159,7 +1192,7 @@ __extend__(HTMLDocument.prototype, {
     },
     get documentElement() {
 	var html = Document.prototype.__lookupGetter__('documentElement').apply(this,[]);
-	if ( html === null){
+	if ( html === null) {
 	    html = this.createElement('html');
 	    this.appendChild(html);
 	    html.appendChild(this.createElement('head'));
@@ -1167,18 +1200,18 @@ __extend__(HTMLDocument.prototype, {
 	}
 	return (html);
     },
-    get domain(){
+    get domain() {
         var HOSTNAME = new RegExp('\/\/([^\:\/]+)'),
         matches = HOSTNAME.exec(this.baseURI);
         return matches && matches.length > 1 ? matches[1] : "";
     },
-    set domain(value){
+    set domain(value) {
         var i,
         domainParts = this.domain.split('.').reverse(),
         newDomainParts = value.split('.').reverse();
-        if (newDomainParts.length > 1){
+        if (newDomainParts.length > 1) {
             for (i = 0;i < newDomainParts.length; i++) {
-                if (!(newDomainParts[i] === domainParts[i])){
+                if (!(newDomainParts[i] === domainParts[i])) {
                     return;
                 }
             }
@@ -1279,7 +1312,7 @@ Navigator = function() {
 	    DUMP(this);
         },
         get plugins() {
-	    DUMP(this);
+	    return [];
         },
         get userAgent() {
 	    return ("Mozilla/5.0 (X11; Linux x86_64)" +
@@ -1291,6 +1324,17 @@ Navigator = function() {
 };
 
 /*----------------------------------------------------------------------*/
+
+var __top__ = function(_scope) {
+    var _parent = _scope.parent;
+    while (_scope && _parent && _scope !== _parent) {
+        if (_parent === _parent.parent) {
+            break;
+        }
+        _parent = _parent.parent;
+    }
+    return _parent || null;
+};
 
 Window = function(scope, parent, opener) {
     scope.__defineGetter__('window', function() {
@@ -1304,7 +1348,7 @@ Window = function(scope, parent, opener) {
     var $parent = parent;
     __extend__(scope, EventTarget.prototype);
     return __extend__(scope, {
-        alert : function(message){
+        alert : function(message) {
             DUMP(message);
         },
 	get document() {
@@ -1313,6 +1357,9 @@ Window = function(scope, parent, opener) {
 	set document(doc) {
 	    $document = doc;
 	},
+        get history() {
+            return $history;
+        },
         get location() {
             return $location;
         },
@@ -1329,10 +1376,10 @@ Window = function(scope, parent, opener) {
         get navigator() {
             return $navigator;
         },
-        get parent(){
+        get parent() {
             return $parent;
         },
-        get self(){
+        get self() {
             return scope;
         },
  	setInterval: function(fn, time) {
@@ -1341,6 +1388,9 @@ Window = function(scope, parent, opener) {
 	setTimeout: function(fn, time) {
 	    DUMP(fn);
 	},
+        get top() {
+            return __top__(scope);
+        },
 	get window() {
 	    return this;
 	},
