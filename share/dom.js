@@ -388,6 +388,108 @@ ENVJS.getCookies = function(url) {
     return (temporary + persistent);
 };
 
+ENVJS.normalizepath = function(path)
+{
+    if (!path || path === '/')
+        return '/';
+    var parts = path.split('/');
+    var newparts = [];
+    if (parts[0])
+        newparts.push('');
+    for (var i = 0; i < parts.length; ++i) {
+        if (parts[i] === '..') {
+            if (newparts.length > 1)
+                newparts.pop();
+            else
+                newparts.push(parts[i]);
+        } else if (parts[i] != '.')
+            newparts.push(parts[i]);
+    }
+    path = newparts.join('/');
+    if (!path)
+        path = '/';
+    return (path);
+};
+
+ENVJS.uri = function(path, base) {
+    if (path.indexOf('javascript') === 0)
+        return '';
+    if (path.match('^[a-zA-Z]+://'))
+        return ENVJS.urlnormalize(path);
+    if (path.match('^//'))
+        path = 'http:' + path;
+    if (!base && document)
+        base = document.baseURI;
+    if (base === 'about:blank')
+        base = '';
+    if (!base)
+        base = 'file://' +  ENVJS.getcwd() + '/';
+    var newurl = ENVJS.urlnormalize(ENVJS.urljoin(base, path, false));
+    return (newurl);
+};
+
+ENVJS.urljoin = function(base, url, allow_fragments)
+{
+    if (typeof allow_fragments === 'undefined')
+        allow_fragments = true;
+    var url_parts = ENVJS.urlsplit(url);
+    if (url_parts.scheme) {
+        if (! allow_fragments)
+            return url;
+        else
+            return ENVJS.urldefrag(url)[0];
+    }
+    var base_parts = ENVJS.urlsplit(base);
+    if (!base_parts.scheme)
+        base_parts.scheme = url_parts.scheme;
+    if (!base_parts.netloc || !base_parts.hostname) {
+        base_parts.netloc = url_parts.netloc;
+        base_parts.hostname = url_parts.hostname;
+        base_parts.port = url_parts.port;
+    }
+    if (url_parts.path.length > 0) {
+        if (url_parts.path.charAt(0) == '/')
+            base_parts.path = url_parts.path;
+        else {
+            var idx = base_parts.path.lastIndexOf('/');
+            if (idx == -1)
+                base_parts.path = url_parts.path;
+            else
+                base_parts.path = base_parts.path.substr(0,idx) + '/' +
+                    url_parts.path;
+        }
+    }
+    base_parts.path = ENVJS.normalizepath(base_parts.path);
+    base_parts.query = url_parts.query;
+    if (allow_fragments)
+        base_parts.fragment = url_parts.fragment;
+    else
+        base_parts.fragment = '';
+    return ENVJS.urlunsplit(base_parts);
+};
+
+ENVJS.urlnormalize = function(url) {
+    var parts = ENVJS.urlsplit(url);
+    switch (parts.scheme) {
+    case 'file':
+        parts.query = '';
+        parts.fragment = '';
+        break;
+    case 'http':
+    case 'https':
+        if ((parts.scheme === 'http' && parts.port == 80) ||
+            (parts.scheme === 'https' && parts.port == 443)) {
+            parts.port = null;
+            parts.netloc = parts.hostname;
+        }
+        break;
+    default:
+        return url;
+    }
+    parts.path = ENVJS.normalizepath(parts.path);
+    return ENVJS.urlunsplit(parts);
+};
+
 ENVJS.urlsplit = function(url, default_scheme, allow_fragments) {
     var leftover;
 
@@ -421,6 +523,30 @@ ENVJS.urlsplit = function(url, default_scheme, allow_fragments) {
 	o.fragment = '';
     }
     return (o);
+};
+
+ENVJS.urlunsplit = function(o) {
+    var s = '';
+    if (o.scheme)
+        s += o.scheme + '://';
+    if (o.netloc) {
+        if (s == '')
+            s += '//';
+        s +=  o.netloc;
+    } else if (o.hostname) {
+        if (s == '')
+            s += '//';
+        s += o.hostname;
+        if (o.port)
+            s += ':' + o.port;
+    }
+    if (o.path)
+        s += o.path;
+    if (o.query)
+        s += '?' + o.query;
+    if (o.fragment)
+        s += '#' + o.fragment;
+    return (s);
 };
 
 /*----------------------------------------------------------------------*/
@@ -1436,7 +1562,7 @@ Window = function(scope, parent, opener) {
             return $location;
         },
         set location(uri) {
-            uri = Envjs.uri(uri);
+            uri = ENVJS.uri(uri);
             if ($location.href == uri) {
                 $location.reload();
             } else if ($location.href == 'about:blank') {
