@@ -768,6 +768,19 @@ __extend__(DocumentFragment.prototype,{
 
 /*----------------------------------------------------------------------*/
 
+Text = function(ownerDocument) {
+    CharacterData.apply(this, arguments);
+    this.nodeName  = "#text";
+};
+Text.prototype = new CharacterData();
+__extend__(Text.prototype, {
+    get nodeType(){
+        return Node.TEXT_NODE;
+    },
+});
+
+/*----------------------------------------------------------------------*/
+
 var re_validName = /^[a-zA-Z_:][a-zA-Z0-9\.\-_:]*$/;
 function __isValidName__(name) {
     return name.match(re_validName);
@@ -802,6 +815,11 @@ __extend__(Document.prototype, {
     createDocumentFragment: function() {
         var node = new DocumentFragment(this);
         return (node);
+    },
+    createTextNode: function(data) {
+        var node = new Text(this);
+        node.data = data;
+        return node;
     },
     get documentElement() {
 	var i, length = this.childNodes ? this.childNodes.length : 0;
@@ -1119,6 +1137,13 @@ HTMLParagraphElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
+HTMLScriptElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLScriptElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLSelectElement = function(ownerDocument) {
     HTMLTypeValueInputs.apply(this, arguments);
     this._oldIndex = -1;
@@ -1132,6 +1157,13 @@ HTMLTextAreaElement = function(ownerDocument) {
     this._rawvalue = null;
 };
 HTMLTextAreaElement.prototype = new HTMLInputAreaCommon();
+
+/*----------------------------------------------------------------------*/
+
+HTMLTitleElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLTitleElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
@@ -1178,11 +1210,17 @@ __extend__(HTMLDocument.prototype, {
         case "P":
             node = new HTMLParagraphElement(this);
 	    break;
+        case "SCRIPT":
+            node = new HTMLScriptElement(this);
+	    break;
         case "SELECT":
             node = new HTMLSelectElement(this);
 	    break;
         case "TEXTAREA":
             node = new HTMLTextAreaElement(this);
+	    break;
+        case "TITLE":
+            node = new HTMLTitleElement(this);
 	    break;
 	default:
 	    DUMP(tagName);
@@ -1218,6 +1256,21 @@ __extend__(HTMLDocument.prototype, {
             this.baseURI = this.baseURI.replace(domainParts.join('.'), value);
         }
     },
+    get head(){
+        if (!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var element = this.documentElement,
+            length = element.childNodes.length,
+            i;
+        for (i = 0; i < length; i++) {
+            if (element.childNodes[i].nodeType === Node.ELEMENT_NODE) {
+                if (element.childNodes[i].tagName.toLowerCase() === 'head')
+                    return element.childNodes[i];
+            }
+        }
+        var head = element.appendChild(this.createElement('head'));
+        return (head);
+    },
     get location() {
         if (this.ownerWindow) {
             return this.ownerWindow.location;
@@ -1234,6 +1287,28 @@ __extend__(HTMLDocument.prototype, {
     open : function() {
         if (!this._writebuffer)
             this._writebuffer = [];
+    },
+    get title(){
+        if (!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var title,
+            head = this.head,
+            length = head.childNodes.length,
+            i;
+        for (i = 0; i < length; i++) {
+            if (head.childNodes[i].nodeType === Node.ELEMENT_NODE) {
+                if (head.childNodes[i].tagName.toLowerCase() === 'title')
+                    return head.childNodes[i].textContent;
+            }
+        }
+        title = head.appendChild(this.createElement('title'));
+        return title.appendChild(this.createTextNode('Untitled Document')).nodeValue;
+    },
+    set title(titleStr) {
+        if (!this.documentElement)
+            this.appendChild(this.createElement('html'));
+        var title = this.title;
+        title.textContent = titleStr;
     },
     write: function(htmlstring) {
         this.open();
