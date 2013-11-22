@@ -288,8 +288,9 @@ EJS_new(const char *url)
 	struct ejs_private *ep;
 	JSBool ret;
 	JSFunction *func;
+	JSObject *envjs;
 	JSScript *script;
-	jsval envjs;
+	jsval val;
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
@@ -315,6 +316,13 @@ EJS_new(const char *url)
 	JS_SetGlobalObject(ep->cx, ep->global);
 	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
 		printf("[ERROR] JS_DefineFunction() failed.\n");
+	envjs = JS_NewObject(ep->cx, NULL, NULL, NULL);
+	AN(envjs);
+	func = JS_DefineFunction(ep->cx, envjs, "getURL", &envjs_getURL, 0, 0);
+	assert(func != NULL);
+	val = OBJECT_TO_JSVAL(envjs);
+	ret = JS_SetProperty(ep->cx, ep->global, "ENVJS", &val);
+	assert(ret == JS_TRUE);
 	{
 		FILE *fp;
 		double now = TIM_real();
@@ -333,21 +341,7 @@ EJS_new(const char *url)
 		printf("[INFO] Built-in JS compile time: %.3f\n",
 		    TIM_real() - now);
 	}
-	ret = JS_GetProperty(ep->cx, ep->global, "ENVJS", &envjs);
-	assert(ret == JS_TRUE);
-	assert(JSVAL_IS_PRIMITIVE(envjs) == JS_FALSE);
-	func = JS_DefineFunction(ep->cx, JSVAL_TO_OBJECT(envjs), "getURL",
-	    &envjs_getURL, 0, 0);
-	assert(func != NULL);
-	{
-		const char *assign = "window.location = ENVJS.getURL()";
-
-		ret = JS_EvaluateScript(ep->cx, ep->global, assign,
-		    strlen(assign), "-e", 1, NULL);
-		if (ret == JS_FALSE)
-			printf("JS_EvaluateScript error.\n");
-	}
-	dumpobj(ep->cx, JSVAL_TO_OBJECT(envjs));
+	dumpobj(ep->cx, envjs);
 
 	return ((void *)ep);
 }

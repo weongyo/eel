@@ -313,8 +313,6 @@ replace(/(?:^|:|,)(?:\s*\[)+/g, ''))) {
 
 /*----------------------------------------------------------------------*/
 
-var ENVJS = {};
-
 var __cookies__;
 
 ENVJS.cookies = {
@@ -1537,7 +1535,7 @@ Window = function(scope, parent, opener) {
     var $htmlImplementation = new DOMImplementation();
     var $document = new HTMLDocument($htmlImplementation, scope);
     var $history = new History();
-    var $location = new Location('about:blank', $document, $history);
+    var $location = new Location(ENVJS.getURL(), $document, $history);
     var $navigator = new Navigator();
     var $parent = parent;
     __extend__(scope, EventTarget.prototype);
