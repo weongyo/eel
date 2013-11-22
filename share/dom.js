@@ -87,13 +87,12 @@ function __mergeCookie__(target, cookie, properties) {
     for (name in properties) {
         now = new Date().getTime();
         target[cookie.domain][cookie.path][name] = {
-            "value":properties[name],
-            "secure":cookie.secure,
-            "max-age":cookie['max-age'],
-            "date-created":now,
-            "expiration":(cookie['max-age']===0) ? 
-                0 :
-                now + cookie['max-age']
+            "value": properties[name],
+            "secure": cookie.secure,
+            "max-age": cookie['max-age'],
+            "date-created": now,
+            "expiration": (cookie['max-age'] === 0) ? 0 :
+		now + cookie['max-age']
         };
     }
 };
