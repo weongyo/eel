@@ -189,10 +189,8 @@ JSON = function() {
             return String(value);
             
         case 'object':
-
-            if (!value) {
+            if (!value)
                 return 'null';
-            }
             gap += indent;
             partial = [];
 
@@ -225,7 +223,6 @@ JSON = function() {
                     }
                 }
             } else {
-
                 for (k in value) {
                     if (Object.hasOwnProperty.call(value, k)) {
                         v = str(k, value);
@@ -246,8 +243,8 @@ JSON = function() {
 
     return {
         stringify: function (value, replacer, space) {
-
             var i;
+
             gap = '';
             indent = '';
 
@@ -273,6 +270,7 @@ JSON = function() {
 
         parse: function (text, reviver) {
             var j;
+
             function walk(holder, key) {
                 var k, v, value = holder[key];
                 if (value && typeof value === 'object') {
@@ -297,7 +295,6 @@ JSON = function() {
                             (+(a.charCodeAt(0))).toString(16)).slice(-4);
                 });
             }
-
 
             if (/^[\],:{}\s]*$/.
 test(text.replace(/\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g, '@').
