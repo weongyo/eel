@@ -478,7 +478,6 @@ search_for_links(struct req *req, GumboNode* node)
 	case GUMBO_TAG_SCRIPT:
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
 		if (src != NULL) {
-			printf("SCRIPT SRC = %s\n", src->value);
 			ret = urlnorm(req, src->value, urlbuf, sizeof(urlbuf));
 			if (ret == -1) {
 				printf("Failed to normalize URL.\n");
@@ -496,7 +495,6 @@ search_for_links(struct req *req, GumboNode* node)
 		text = node->v.element.children.data[0];
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
-			printf("SCRIPT BODY { %s }\n", text->v.text.text);
 			SCR_newbuffer(req, req->url,
 			    text->v.text.start_pos.line, text->v.text.text);
 			break;
