@@ -504,6 +504,7 @@ search_for_links(struct req *req, GumboNode* node)
 			printf("Unexpected type %d\n", text->type);
 			assert(0 == 1);
 		}
+		break;
 	default:
 		break;
 	}
