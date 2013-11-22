@@ -1371,9 +1371,8 @@ __extend__(HTMLDocument.prototype, {
         newDomainParts = value.split('.').reverse();
         if (newDomainParts.length > 1) {
             for (i = 0;i < newDomainParts.length; i++) {
-                if (!(newDomainParts[i] === domainParts[i])) {
+                if (!(newDomainParts[i] === domainParts[i]))
                     return;
-                }
             }
             this.baseURI = this.baseURI.replace(domainParts.join('.'), value);
         }
@@ -1394,17 +1393,15 @@ __extend__(HTMLDocument.prototype, {
         return (head);
     },
     get location() {
-        if (this.ownerWindow) {
+        if (this.ownerWindow)
             return this.ownerWindow.location;
-        } else {
+        else
             return this.baseURI;
-        }
     },
     set location(url) {
         this.baseURI = url;
-        if (this.ownerWindow) {
+        if (this.ownerWindow)
             this.ownerWindow.location = url;
-        }
     },
     open : function() {
         if (!this._writebuffer)
@@ -1595,4 +1592,3 @@ Window = function(scope, parent, opener) {
 };
 
 new Window(this, this);
-window.location = ENVJS.getURL();

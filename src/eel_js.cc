@@ -296,6 +296,7 @@ EJS_new(const char *url)
 	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
 	AN(ep);
 	ep->magic = EJS_PRIVATE_MAGIC;
+	ep->url = url;
 	ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
 	AN(ep->rt);
 	JS_SetGCParameter(ep->rt, JSGC_MAX_BYTES, 0xffffffff);
@@ -338,6 +339,15 @@ EJS_new(const char *url)
 	func = JS_DefineFunction(ep->cx, JSVAL_TO_OBJECT(envjs), "getURL",
 	    &envjs_getURL, 0, 0);
 	assert(func != NULL);
+	{
+		const char *assign = "window.location = ENVJS.getURL()";
+
+		ret = JS_EvaluateScript(ep->cx, ep->global, assign,
+		    strlen(assign), "-e", 1, NULL);
+		if (ret == JS_FALSE)
+			printf("JS_EvaluateScript error.\n");
+	}
+	dumpobj(ep->cx, JSVAL_TO_OBJECT(envjs));
 
 	return ((void *)ep);
 }
