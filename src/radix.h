@@ -116,3 +116,4 @@ struct radix_node_head {
     AZ(pthread_mutex_destroy(&(rnh)->rnh_lock))
 
 void	rn_init(int maxk);
+int	rn_inithead(void **head, int off);

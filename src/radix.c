@@ -54,18 +54,6 @@
  */
 #define LEN(x) ( (int) (*(const u_short *)(x)) )
 
-/*
- * Convert a 'struct radix_node *' to a 'struct objhead *'.
- * The operation can be done safely (in this code) because a
- * 'struct objhead' starts with two 'struct radix_node''s, the first
- * one representing leaf nodes in the routing tree, which is
- * what the code in radix.c passes us as a 'struct radix_node'.
- *
- * But because there are a lot of assumptions in this conversion,
- * do not cast explicitly, but always use the macro below.
- */
-#define RNTOOBJHEAD(p)	((struct objhead *)(p))
-
 /*-------------------------------------------------------------------------*/
 
 #define MKGet(m) {						\
@@ -78,7 +66,6 @@
 #define MKFree(m) { (m)->rm_mklist = rn_mkfreelist; rn_mkfreelist = (m);}
 
 static int	max_keylen;
-static struct radix_node_head *hrd_rnhead;
 static struct radix_mask *rn_mkfreelist;
 /*
  * Work area -- the following point to 3 buffers of size max_keylen,
@@ -87,7 +74,6 @@ static struct radix_mask *rn_mkfreelist;
  */
 static char *rn_zeros, *rn_ones;
 
-static int	 rn_inithead(void **, int);
 static struct radix_node
 		 *rn_add (void *, struct radix_node_head *,
 				struct radix_node [2]),
@@ -184,7 +170,7 @@ on1:
 	return (tt);
 }
 
-struct radix_node *
+static struct radix_node *
 rn_add(void *v_arg, struct radix_node_head *head,
     struct radix_node treenodes[2])
 {
@@ -266,7 +252,7 @@ on2:
 	return tt; /* can't lift at all */
 }
 
-struct radix_node *
+static struct radix_node *
 rn_delete(void *v_arg, struct radix_node_head *head)
 {
 	register struct radix_node *t, *p, *x, *tt;
@@ -423,7 +409,7 @@ rn_search_m(void *v_arg, struct radix_node *head, void *m_arg)
 	return x;
 }
 
-struct radix_node *
+static struct radix_node *
 rn_match(void *v_arg, struct radix_node_head *head)
 {
 	caddr_t v = v_arg;
@@ -573,7 +559,7 @@ rn_walktree(struct radix_node_head *h, walktree_f_t *f, void *w)
  * The function returns a pointer to the parent node.
  */
 
-struct radix_node *
+static struct radix_node *
 rn_newpair(void *v, int b, struct radix_node nodes[2])
 {
 	register struct radix_node *tt = nodes, *t = tt + 1;
@@ -654,6 +640,4 @@ rn_init(int maxk)
 	cplim = rn_ones + max_keylen;
 	while (cp < cplim)
 		*cp++ = -1;
-	if (rn_inithead((void **)(void *)&hrd_rnhead, 0) == 0)
-		abort();
 }

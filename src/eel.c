@@ -48,6 +48,31 @@
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
 
+/*
+ * Convert a 'struct radix_node *' to a 'struct link *'.
+ * The operation can be done safely (in this code) because a
+ * 'struct link' starts with two 'struct radix_node''s, the first
+ * one representing leaf nodes in the routing tree, which is
+ * what the code in radix.c passes us as a 'struct radix_node'.
+ *
+ * But because there are a lot of assumptions in this conversion,
+ * do not cast explicitly, but always use the macro below.
+ */
+#define RNTOLINK(p)	((struct objhead *)(p))
+
+struct link {
+	struct radix_node	rt_nodes[2]; /* tree glue, and other values */
+	/*
+	 * `struct link' must begin with a struct radix_node (or two!)
+	 * because the code does some casts of a 'struct radix_node *'
+	 * to a 'struct link *'
+	 */
+#define	link_key(r)		(*((struct link **)(&(r)->rt_nodes->rn_key)))
+	unsigned		magic;
+#define	LINK_MAGIC		0xc771947b
+	char			*buf;
+};
+
 struct worker;
 
 struct sess {
@@ -100,6 +125,48 @@ struct worker {
 	struct callout		co_timo;
 	struct callout_block	cb;
 };
+
+/*----------------------------------------------------------------------*/
+
+static struct radix_node_head *link_rnhead;
+
+static void
+HRD_start(void)
+{
+
+	rn_init(1024);
+	if (rn_inithead((void **)(void *)&link_rnhead, 0) == 0)
+		abort();
+}
+
+static void
+HRD_lookup(void)
+{
+#if 0
+	struct radix_node *rn;
+	struct radix_node_head *rnh = link_rnhead;
+
+	RADIX_NODE_HEAD_LOCK(rnh);
+	rn = rnh->rnh_match(url, rnh);
+	if (rn != NULL) {
+		RADIX_NODE_HEAD_UNLOCK(rnh);
+		return;
+	}
+	HRD_DUP(noh->digest, w->digest);
+	rn = rnh->rnh_add(noh->digest, rnh, noh->rt_nodes);
+	if (rn == NULL) {
+		AZ(1);
+		return (NULL);
+	} else {
+		sp->flags |= SESS_F_OBJHEAD_CREATED;
+		oh = RNTOOBJHEAD(rn);
+		RADIX_NODE_HEAD_UNLOCK(rnh);
+		return (oh);
+	}
+#endif
+}
+
+/*----------------------------------------------------------------------*/
 
 static pthread_rwlock_t *rwlocks;
 
@@ -669,7 +736,7 @@ main(int argc, char *argv[])
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
 	EJS_init();
-	rn_init(1024);
+	HRD_start();
 
 	for (i = 0; i < 1; i++) {
 		ret = pthread_create(&tid, NULL, core_main, NULL);
