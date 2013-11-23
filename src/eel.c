@@ -181,10 +181,6 @@ static void
 HRD_delete(struct link *lk)
 {
 
-	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
-		assert(lk->refcnt > 0);
-		return;
-	}
 	assert(lk->refcnt == 0);
 	if ((lk->flags & LINK_F_ONTREE) != 0) {
 		struct link *old;
@@ -205,22 +201,34 @@ HRD_delete(struct link *lk)
 	free(lk);
 }
 
+static void
+HRD_remref(struct link *lk)
+{
+
+	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
+		assert(lk->refcnt > 0);
+		return;
+	}
+	HRD_delete(lk);
+}
+
+#if 0
 static struct link *
-HRD_lookup(struct link *lk, int needadd)
+HRD_lookup(struct link *lk, int *created)
 {
 	struct link *new;
 	struct radix_node *rn;
 	struct radix_node_head *rnh = link_rnhead;
 
+	*created = 0;
 	RADIX_NODE_HEAD_LOCK(rnh);
 	rn = rnh->rnh_match(lk->digest, rnh);
 	if (rn != NULL) {
+		new = LINK_FROMRN(rn);
+		assert(new == lk);
 		RADIX_NODE_HEAD_UNLOCK(rnh);
-		return (LINK_FROMRN(rn));
-	}
-	if (needadd == 0) {
-		RADIX_NODE_HEAD_UNLOCK(rnh);
-		return (NULL);
+		ATOMIC_ADD_FETCH(&new->refcnt, 1);
+		return (new);
 	}
 	rn = rnh->rnh_add(lk->digest, rnh, lk->rt_nodes);
 	if (rn == NULL) {
@@ -232,8 +240,10 @@ HRD_lookup(struct link *lk, int needadd)
 	assert(new == lk);
 	new->flags |= LINK_F_ONTREE;
 	ATOMIC_ADD_FETCH(&new->refcnt, 1);
+	*created = 1;
 	return (new);
 }
+#endif
 
 /*----------------------------------------------------------------------*/
 
@@ -488,16 +498,23 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 static void
 REQ_newroot(struct worker *wrk, const char *url)
 {
-	struct link *lk, *old;
+	struct link *lk;
 
 	lk = HRD_new(url);
 	AN(lk);
-	old = HRD_lookup(lk, 0);
-	if (old != NULL) {
-		printf("[INFO] On the tree, no need to fetch.\n");
-		HRD_delete(lk);
-		return;
+#if 0
+	{
+		struct link *lk, *new;
+		int created;
+
+		new = HRD_lookup(lk, &created);
+		if (new != NULL && created == 0) {
+			printf("[INFO] Dup URL (%s), no need to fetch.\n", url);
+			HRD_remref(lk);
+			return;
+		}
 	}
+#endif
 	(void)REQ_new(wrk, NULL, lk);
 }
 
@@ -538,7 +555,7 @@ REQ_free(struct req *req)
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
-	HRD_delete(req->link);
+	HRD_remref(req->link);
 	free(req);
 }
 
