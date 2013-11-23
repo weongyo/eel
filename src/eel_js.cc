@@ -324,6 +324,7 @@ EJS_new(const char *url)
 	ret = JS_SetProperty(ep->cx, ep->global, "ENVJS", &val);
 	assert(ret == JS_TRUE);
 	{
+		static int first = 1;
 		FILE *fp;
 		double now = TIM_real();
 
@@ -338,8 +339,11 @@ EJS_new(const char *url)
 		if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
 			printf("[ERROR] JS_ExecuteScript() failed.\n");
 		fclose(fp);
-		printf("[INFO] Built-in JS compile time: %.3f\n",
-		    TIM_real() - now);
+		if (first == 1) {
+			printf("[INFO] Built-in JS compile time: %.3f\n",
+			    TIM_real() - now);
+			first = 0;
+		}
 	}
 
 	return ((void *)ep);

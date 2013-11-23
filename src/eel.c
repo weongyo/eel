@@ -639,8 +639,14 @@ search_for_links(struct req *req, GumboNode* node)
 	switch (node->v.element.tag) {
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
-		if (href != NULL)
-			printf("A HREF = %s\n", href->value);
+		if (href != NULL) {
+			ret = urlnorm(req, href->value, urlbuf, sizeof(urlbuf));
+			if (ret == -1) {
+				printf("Failed to normalize URL.\n");
+				break;
+			}
+			printf("A HREF = %s\n", urlbuf);
+		}
 		break;
 	case GUMBO_TAG_SCRIPT:
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
