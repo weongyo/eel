@@ -43,6 +43,7 @@
 
 #include "callout.h"
 #include "eel.h"
+#include "radix.h"
 #include "vsb.h"
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
@@ -668,6 +669,7 @@ main(int argc, char *argv[])
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
 	EJS_init();
+	rn_init(1024);
 
 	for (i = 0; i < 1; i++) {
 		ret = pthread_create(&tid, NULL, core_main, NULL);
