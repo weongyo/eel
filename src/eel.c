@@ -206,7 +206,7 @@ HRD_delete(struct link *lk)
 }
 
 static struct link *
-HRD_lookup(struct link *lk, int create)
+HRD_lookup(struct link *lk, int needadd)
 {
 	struct link *new;
 	struct radix_node *rn;
@@ -218,7 +218,7 @@ HRD_lookup(struct link *lk, int create)
 		RADIX_NODE_HEAD_UNLOCK(rnh);
 		return (LINK_FROMRN(rn));
 	}
-	if (create == 0) {
+	if (needadd == 0) {
 		RADIX_NODE_HEAD_UNLOCK(rnh);
 		return (NULL);
 	}
@@ -448,17 +448,18 @@ SCR_free(struct script *scr)
 }
 
 static struct req *
-REQ_new(struct worker *wrk, struct req *parent, const char *url)
+REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 {
 	struct req *req;
 	CURLcode code;
 	CURLMcode mcode;
 
+	AN(lk);
+
 	req = calloc(sizeof(*req), 1);
 	AN(req);
 	req->magic = REQ_MAGIC;
-	req->link = HRD_new(url);
-	AN(req->link);
+	req->link = lk;
 	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
 	req->parent = parent;
@@ -466,7 +467,7 @@ REQ_new(struct worker *wrk, struct req *parent, const char *url)
 	VTAILQ_INIT(&req->scripthead);
 	req->c = curl_easy_init();
 	AN(req->c);
-	code = curl_easy_setopt(req->c, CURLOPT_URL, url);
+	code = curl_easy_setopt(req->c, CURLOPT_URL, LINK_URL(lk));
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, writebody);
 	assert(code == CURLE_OK);
@@ -487,16 +488,28 @@ REQ_new(struct worker *wrk, struct req *parent, const char *url)
 static void
 REQ_newroot(struct worker *wrk, const char *url)
 {
+	struct link *lk, *old;
 
-	(void)REQ_new(wrk, NULL, url);
+	lk = HRD_new(url);
+	AN(lk);
+	old = HRD_lookup(lk, 0);
+	if (old != NULL) {
+		printf("[INFO] On the tree, no need to fetch.\n");
+		HRD_delete(lk);
+		return;
+	}
+	(void)REQ_new(wrk, NULL, lk);
 }
 
 static struct req *
 REQ_newchild(struct req *parent, const char *url)
 {
+	struct link *lk;
 	struct req *req;
 
-	req = REQ_new(parent->wrk, parent, url);
+	lk = HRD_new(url);
+	AN(lk);
+	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
@@ -686,7 +699,6 @@ REQ_final(struct req *req)
 	AN(req->scriptpriv);
 
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
-		printf("SCRIPT %d\n", scr->type);
 		if (scr->type == SCRIPT_T_REQ) {
 			const struct req *tmp;
 
