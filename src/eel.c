@@ -46,6 +46,13 @@
 #include "radix.h"
 #include "vsb.h"
 
+#define ATOMIC_ADD_FETCH(p, v) \
+	__sync_add_and_fetch((p), (v))
+#define ATOMIC_SUB_FETCH(p, v) \
+	__sync_sub_and_fetch((p), (v))
+#define	ATOMIC_COMPARE_SWAP(p, old, new) \
+	__sync_bool_compare_and_swap(p, old, new)
+
 #define	EPOLLEVENT_MAX	(4 * 1024)
 
 /*
@@ -58,7 +65,10 @@
  * But because there are a lot of assumptions in this conversion,
  * do not cast explicitly, but always use the macro below.
  */
-#define RNTOLINK(p)	((struct objhead *)(p))
+#define LINK_FROMRN(p)	((struct link *)(p))
+#define LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->digest)))
+#define LINK_SETLEN(lk, v) ((*(u_short *)(lk->digest)) = (v))
+#define	LINK_URL(lk)	((char *)(lk->digest + 2))
 
 struct link {
 	struct radix_node	rt_nodes[2]; /* tree glue, and other values */
@@ -70,8 +80,15 @@ struct link {
 #define	link_key(r)		(*((struct link **)(&(r)->rt_nodes->rn_key)))
 	unsigned		magic;
 #define	LINK_MAGIC		0xc771947b
-	char			*buf;
+	unsigned		flags;
+#define	LINK_F_ONTREE		(1 << 0)
+#define	LINK_F_DONE		(1 << 1)
+	int			refcnt;
+	char			*digest;
+	VTAILQ_ENTRY(link)	list;
 };
+
+static VTAILQ_HEAD(, link)	linkhead = VTAILQ_HEAD_INITIALIZER(linkhead);
 
 struct worker;
 
@@ -97,7 +114,7 @@ struct script {
 struct req {
 	unsigned		magic;
 #define	REQ_MAGIC		0x9ba52f21
-	char			*url;
+	struct link		*link;
 	CURL			*c;
 	struct vsb		*vsb;
 	struct worker		*wrk;
@@ -139,31 +156,83 @@ HRD_start(void)
 		abort();
 }
 
-static void
-HRD_lookup(void)
+static struct link *
+HRD_new(const char *url)
 {
-#if 0
+	struct link *lk;
+	int len;
+
+	AN(url);
+	len = strlen(url);
+	assert(len > 0);
+	assert(len < 1024);
+	lk = calloc(sizeof(*lk) + sizeof(u_short) + len + 1 /* \0 */, 1);
+	AN(lk);
+	lk->magic = LINK_MAGIC;
+	lk->refcnt = 1;
+	lk->digest = (char *)(lk + 1);
+	LINK_SETLEN(lk, len);
+	bcopy(url, lk->digest + sizeof(u_short), len);
+	VTAILQ_INSERT_TAIL(&linkhead, lk, list);
+	return (lk);
+}
+
+static void
+HRD_delete(struct link *lk)
+{
+
+	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
+		assert(lk->refcnt > 0);
+		return;
+	}
+	assert(lk->refcnt == 0);
+	if ((lk->flags & LINK_F_ONTREE) != 0) {
+		struct link *old;
+		struct radix_node *rn;
+		struct radix_node_head *rnh = link_rnhead;
+
+		RADIX_NODE_HEAD_LOCK(rnh);
+		rn = rnh->rnh_del(lk->digest, rnh);
+		if (rn == NULL)
+			assert(0 == 1);
+		else {
+			old = LINK_FROMRN(rn);
+			assert(old == lk);
+		}
+		RADIX_NODE_HEAD_UNLOCK(rnh);
+		lk->flags &= ~LINK_F_ONTREE;
+	}
+	free(lk);
+}
+
+static struct link *
+HRD_lookup(struct link *lk, int create)
+{
+	struct link *new;
 	struct radix_node *rn;
 	struct radix_node_head *rnh = link_rnhead;
 
 	RADIX_NODE_HEAD_LOCK(rnh);
-	rn = rnh->rnh_match(url, rnh);
+	rn = rnh->rnh_match(lk->digest, rnh);
 	if (rn != NULL) {
 		RADIX_NODE_HEAD_UNLOCK(rnh);
-		return;
+		return (LINK_FROMRN(rn));
 	}
-	HRD_DUP(noh->digest, w->digest);
-	rn = rnh->rnh_add(noh->digest, rnh, noh->rt_nodes);
-	if (rn == NULL) {
-		AZ(1);
-		return (NULL);
-	} else {
-		sp->flags |= SESS_F_OBJHEAD_CREATED;
-		oh = RNTOOBJHEAD(rn);
+	if (create == 0) {
 		RADIX_NODE_HEAD_UNLOCK(rnh);
-		return (oh);
+		return (NULL);
 	}
-#endif
+	rn = rnh->rnh_add(lk->digest, rnh, lk->rt_nodes);
+	if (rn == NULL) {
+		RADIX_NODE_HEAD_UNLOCK(rnh);
+		return (NULL);
+	}
+	RADIX_NODE_HEAD_UNLOCK(rnh);
+	new = LINK_FROMRN(rn);
+	assert(new == lk);
+	new->flags |= LINK_F_ONTREE;
+	ATOMIC_ADD_FETCH(&new->refcnt, 1);
+	return (new);
 }
 
 /*----------------------------------------------------------------------*/
@@ -388,8 +457,8 @@ REQ_new(struct worker *wrk, struct req *parent, const char *url)
 	req = calloc(sizeof(*req), 1);
 	AN(req);
 	req->magic = REQ_MAGIC;
-	req->url = strdup(url);
-	AN(req->url);
+	req->link = HRD_new(url);
+	AN(req->link);
 	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
 	req->parent = parent;
@@ -456,7 +525,7 @@ REQ_free(struct req *req)
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
-	free(req->url);
+	HRD_delete(req->link);
 	free(req);
 }
 
@@ -474,8 +543,8 @@ urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	 * XXX Don't need to parse everytime.
 	 */
 	state.uri = &absoluteBase;
-	if (uriParseUriA(&state, req->url) != URI_SUCCESS) {
-		printf("Failed to parse URL %s\n", req->url);
+	if (uriParseUriA(&state, LINK_URL(req->link)) != URI_SUCCESS) {
+		printf("Failed to parse URL %s\n", LINK_URL(req->link));
 		error = -1;
 		goto fail0;
 	}
@@ -563,7 +632,7 @@ search_for_links(struct req *req, GumboNode* node)
 		text = node->v.element.children.data[0];
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
-			SCR_newbuffer(req, req->url,
+			SCR_newbuffer(req, LINK_URL(req->link),
 			    text->v.text.start_pos.line, text->v.text.text);
 			break;
 		case GUMBO_NODE_WHITESPACE:
@@ -597,7 +666,7 @@ REQ_main(struct req *req)
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_new(req->url);
+		req->scriptpriv = EJS_new(LINK_URL(req->link));
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,
@@ -623,7 +692,7 @@ REQ_final(struct req *req)
 
 			tmp = (const struct req *)scr->priv;
 			assert(tmp->magic == REQ_MAGIC);
-			EJS_eval(req->scriptpriv, tmp->url, 1,
+			EJS_eval(req->scriptpriv, LINK_URL(tmp->link), 1,
 			    VSB_data(tmp->vsb), VSB_len(tmp->vsb));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
 			ptr = (const char *)scr->priv;

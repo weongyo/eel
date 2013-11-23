@@ -341,7 +341,6 @@ EJS_new(const char *url)
 		printf("[INFO] Built-in JS compile time: %.3f\n",
 		    TIM_real() - now);
 	}
-	dumpobj(ep->cx, envjs);
 
 	return ((void *)ep);
 }
