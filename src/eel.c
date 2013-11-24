@@ -71,9 +71,11 @@ struct link {
 	char			*url;
 	struct linkhead		*head;
 	VTAILQ_ENTRY(link)	list;
+	VTAILQ_ENTRY(link)	chain;
 };
 
 static struct linkhead *linktbl;
+static struct linkhead linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
 static u_long linkmask;
 
 struct worker;
@@ -183,6 +185,8 @@ LNK_remref(struct link *lk)
 		return;
 	}
 	VTAILQ_REMOVE(lk->head, lk, list);
+	if ((lk->flags & LINK_F_DONE) == 0)
+		VTAILQ_REMOVE(&linkchain, lk, chain);
 	assert(lk->refcnt == 0);
 	free(lk->url);
 	free(lk);
@@ -211,6 +215,7 @@ LNK_lookup(const char *url)
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
+	VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
 	return (lk);
 }
 
@@ -661,6 +666,7 @@ REQ_main(struct req *req)
 	VSB_finish(vsb);
 	AN(lk);
 	lk->flags |= LINK_F_DONE;
+	VTAILQ_REMOVE(&linkchain, lk, chain);
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
