@@ -127,6 +127,7 @@ struct worker {
 	VTAILQ_HEAD(, req)	reqhead;
 	struct callout		co_timo;
 	struct callout_block	cb;
+	int			n_conns;
 };
 
 /*----------------------------------------------------------------------*/
@@ -459,6 +460,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	VTAILQ_INSERT_TAIL(&wrk->reqhead, req, list);
 	mcode = curl_multi_add_handle(wrk->curlm, req->c);
 	assert(mcode == CURLM_OK);
+	wrk->n_conns++;
 
 	return (req);
 }
@@ -497,6 +499,7 @@ REQ_free(struct req *req)
 	struct worker *wrk = req->wrk;
 
 	assert(wrk->magic == WORKER_MAGIC);
+	wrk->n_conns--;
 
 	if (req->goutput != NULL)
 		gumbo_destroy_output(req->goptions, req->goutput);
