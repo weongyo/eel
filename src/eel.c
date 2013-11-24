@@ -76,7 +76,7 @@ struct link {
 };
 
 static struct linkhead *linktbl;
-static struct linkhead newlinkchain = VTAILQ_HEAD_INITIALIZER(newlinkchain);
+static struct linkhead linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
 static u_long linkmask;
 
 struct worker;
@@ -188,19 +188,21 @@ LNK_remref(struct link *lk)
 	}
 	VTAILQ_REMOVE(lk->head, lk, list);
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0)
-		VTAILQ_REMOVE(&newlinkchain, lk, chain);
+		VTAILQ_REMOVE(&linkchain, lk, chain);
 	assert(lk->refcnt == 0);
 	free(lk->url);
 	free(lk);
 }
 
 static struct link *
-LNK_lookup(const char *url)
+LNK_lookup(const char *url, int *created)
 {
 	struct link *lk;
 	struct linkhead *lh;
 
 	AN(url);
+	if (created != NULL)
+		*created = 0;
 	lh = LINK_HASH(url, strlen(url));
 	VTAILQ_FOREACH(lk, lh, list) {
 		if (!strcmp(lk->url, url)) {
@@ -218,7 +220,9 @@ LNK_lookup(const char *url)
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
-	VTAILQ_INSERT_TAIL(&newlinkchain, lk, chain);
+	VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
+	if (created != NULL)
+		*created = 1;
 	return (lk);
 }
 
@@ -472,7 +476,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
 		lk->flags &= ~LINK_F_ONLINKCHAIN;
-		VTAILQ_REMOVE(&newlinkchain, lk, chain);
+		VTAILQ_REMOVE(&linkchain, lk, chain);
 	}
 
 	return (req);
@@ -483,9 +487,14 @@ REQ_newroot(struct worker *wrk, const char *url)
 {
 	struct link *lk;
 	struct req *req;
+	int created;
 
-	lk = LNK_lookup(url);
+	lk = LNK_lookup(url, &created);
 	AN(lk);
+	if (created == 0) {
+		LNK_remref(lk);
+		return;
+	}
 	req = REQ_new(wrk, NULL, lk);
 	if (req == NULL)
 		return;
@@ -497,7 +506,7 @@ REQ_newchild(struct req *parent, const char *url)
 	struct link *lk;
 	struct req *req;
 
-	lk = LNK_lookup(url);
+	lk = LNK_lookup(url, NULL);
 	AN(lk);
 	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
