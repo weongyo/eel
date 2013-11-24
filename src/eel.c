@@ -655,9 +655,9 @@ REQ_main(struct req *req)
 	CURLcode code;
 	char *content_type;
 
-	AN(lk);
-
 	VSB_finish(vsb);
+	AN(lk);
+	lk->flags |= LINK_F_DONE;
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
