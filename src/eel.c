@@ -380,6 +380,7 @@ SES_free(struct sess *sp)
 {
 
 	SES_eventdel(sp);
+	sp->magic = 0;
 	free(sp);
 }
 
@@ -845,7 +846,13 @@ core_main(void *arg)
 		for (ep = ev, i = 0; i < n; i++, ep++) {
 			sp = (struct sess *)ep->data.ptr;
 			AN(sp);
-			assert(sp->magic == SESS_MAGIC);
+			if (sp->magic != SESS_MAGIC) {
+				/*
+				 * It looks some code of curl missed to call
+				 * the callback to close the socket.
+				 */
+				continue;
+			}
 
 			mcode = curl_multi_socket_action(wrk.curlm, sp->fd,
 			    0, &running_handles);
