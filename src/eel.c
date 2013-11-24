@@ -75,6 +75,7 @@ struct link {
 	VTAILQ_ENTRY(link)	chain;
 };
 
+static int n_links;
 static struct linkhead *linktbl;
 static struct linkhead linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
 static u_long linkmask;
@@ -219,6 +220,7 @@ LNK_lookup(const char *url, int *created)
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
+	n_links++;
 	if (created != NULL)
 		*created = 1;
 	return (lk);
@@ -345,6 +347,21 @@ SES_eventadd(struct sess *sp, int want)
 	assert(ret == 0);
 }
 
+static void
+SES_eventdel(struct sess *sp)
+{
+	struct epoll_event ev = { 0 , { 0 } };
+	int ret;
+
+	ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_DEL, sp->fd, &ev);
+	if (ret != 0) {
+		if (errno == EBADF)
+			return;
+		printf("eventdel %s\n", strerror(errno));
+	}
+	assert(ret == 0);
+}
+
 static struct sess *
 SES_alloc(struct worker *wrk, curl_socket_t fd)
 {
@@ -362,6 +379,7 @@ static void
 SES_free(struct sess *sp)
 {
 
+	SES_eventdel(sp);
 	free(sp);
 }
 
@@ -757,12 +775,15 @@ on_reqfire(void *arg)
 {
 	struct link *lk;
 	struct worker *wrk = (struct worker *)arg;
+	int i;
 
-	printf("REQFIRE\n");
+	printf("REQFIRE n_links %d n_conns %d\n", n_links, wrk->n_conns);
 
-	if (wrk->n_conns == 0) {
-		lk = VTAILQ_FIRST(&linkchain);
-		if (lk != NULL) {
+	if (wrk->n_conns < 10) {
+		for (i = 0; i < 10; i++) {
+			lk = VTAILQ_FIRST(&linkchain);
+			if (lk == NULL)
+				break;
 			VTAILQ_REMOVE(&linkchain, lk, chain);
 			REQ_new(wrk, NULL, lk);
 		}
