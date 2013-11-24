@@ -752,9 +752,19 @@ REQ_final(struct req *req)
 static void
 on_reqfire(void *arg)
 {
+	struct link *lk;
 	struct worker *wrk = (struct worker *)arg;
 
 	printf("REQFIRE\n");
+
+	if (wrk->n_conns == 0) {
+		lk = VTAILQ_FIRST(&linkchain);
+		if (lk != NULL) {
+			VTAILQ_REMOVE(&linkchain, lk, chain);
+			REQ_new(wrk, NULL, lk);
+		}
+	}
+
 	callout_reset(&wrk->cb, &wrk->co_reqfire, CALLOUT_SECTOTICKS(1),
 	    on_reqfire, wrk);
 }
