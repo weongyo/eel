@@ -230,6 +230,9 @@ LNK_newhref(const char *url)
 	struct link *lk;
 	int created;
 
+	if (strncasecmp(url, "http", 4))
+		return;
+
 	lk = LNK_lookup(url, &created);
 	AN(lk);
 	if (created == 1) {
@@ -821,6 +824,7 @@ core_main(void *arg)
 		for (ep = ev, i = 0; i < n; i++, ep++) {
 			sp = (struct sess *)ep->data.ptr;
 			AN(sp);
+			assert(sp->magic == SESS_MAGIC);
 
 			mcode = curl_multi_socket_action(wrk.curlm, sp->fd,
 			    0, &running_handles);
