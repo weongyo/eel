@@ -46,9 +46,9 @@
 #include "radix.h"
 #include "vsb.h"
 
-#define ATOMIC_ADD_FETCH(p, v) \
+#define	ATOMIC_ADD_FETCH(p, v) \
 	__sync_add_and_fetch((p), (v))
-#define ATOMIC_SUB_FETCH(p, v) \
+#define	ATOMIC_SUB_FETCH(p, v) \
 	__sync_sub_and_fetch((p), (v))
 #define	ATOMIC_COMPARE_SWAP(p, old, new) \
 	__sync_bool_compare_and_swap(p, old, new)
@@ -65,9 +65,9 @@
  * But because there are a lot of assumptions in this conversion,
  * do not cast explicitly, but always use the macro below.
  */
-#define LINK_FROMRN(p)	((struct link *)(p))
-#define LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->url)))
-#define LINK_SETLEN(lk, v) ((*(u_short *)(lk->url)) = (v))
+#define	LINK_FROMRN(p)	((struct link *)(p))
+#define	LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->url)))
+#define	LINK_SETLEN(lk, v) ((*(u_short *)(lk->url)) = (v))
 #define	LINK_URL(lk)	((char *)(lk->url + 2))
 
 struct link {
