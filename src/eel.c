@@ -43,7 +43,6 @@
 
 #include "callout.h"
 #include "eel.h"
-#include "radix.h"
 #include "vsb.h"
 
 #define	ATOMIC_ADD_FETCH(p, v) \
@@ -55,40 +54,27 @@
 
 #define	EPOLLEVENT_MAX	(4 * 1024)
 
-/*
- * Convert a 'struct radix_node *' to a 'struct link *'.
- * The operation can be done safely (in this code) because a
- * 'struct link' starts with two 'struct radix_node''s, the first
- * one representing leaf nodes in the routing tree, which is
- * what the code in radix.c passes us as a 'struct radix_node'.
- *
- * But because there are a lot of assumptions in this conversion,
- * do not cast explicitly, but always use the macro below.
- */
-#define	LINK_FROMRN(p)	((struct link *)(p))
-#define	LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->url)))
-#define	LINK_SETLEN(lk, v) ((*(u_short *)(lk->url)) = (v))
-#define	LINK_URL(lk)	((char *)(lk->url + 2))
+#define	FNV1_32_INIT		((uint32_t) 33554467UL)
+#define	FNV_32_PRIME		((uint32_t) 0x01000193UL)
+#define	LINK_NHASH_LOG2		9
+#define	LINK_NHASH		(1 << LINK_NHASH_LOG2)
+#define	LINK_HASHVAL(x, y)	fnv_32_buf((x), (y), FNV1_32_INIT)
+#define	LINK_HASH(x, y)		(&linktbl[LINK_HASHVAL(x, y) & linkmask])
 
+VTAILQ_HEAD(linkhead, link);
 struct link {
-	struct radix_node	rt_nodes[2]; /* tree glue, and other values */
-	/*
-	 * `struct link' must begin with a struct radix_node (or two!)
-	 * because the code does some casts of a 'struct radix_node *'
-	 * to a 'struct link *'
-	 */
-#define	link_key(r)		(*((struct link **)(&(r)->rt_nodes->rn_key)))
 	unsigned		magic;
 #define	LINK_MAGIC		0xc771947b
 	unsigned		flags;
-#define	LINK_F_ONTREE		(1 << 0)
 #define	LINK_F_DONE		(1 << 1)
 	int			refcnt;
 	char			*url;
+	struct linkhead		*head;
 	VTAILQ_ENTRY(link)	list;
 };
 
-static VTAILQ_HEAD(, link)	linkhead = VTAILQ_HEAD_INITIALIZER(linkhead);
+static struct linkhead *linktbl;
+static u_long linkmask;
 
 struct worker;
 
@@ -145,60 +131,46 @@ struct worker {
 
 /*----------------------------------------------------------------------*/
 
-static struct radix_node_head *link_rnhead;
+
+static uint32_t
+fnv_32_buf(const void *buf, size_t len, uint32_t hval)
+{
+	const u_int8_t *s = (const u_int8_t *)buf;
+
+	while (len-- != 0) {
+		hval *= FNV_32_PRIME;
+		hval ^= *s++;
+	}
+	return hval;
+}
+
+static struct linkhead *
+lnk_init(int elements, u_long *hashmask)
+{
+	long hashsize;
+	struct linkhead *hashtbl;
+	int i;
+
+	assert(elements > 0);
+	for (hashsize = 1; hashsize <= elements; hashsize <<= 1)
+		continue;
+	hashsize >>= 1;
+
+	hashtbl = malloc((u_long)hashsize * sizeof(*hashtbl));
+	assert(hashtbl != NULL);
+
+	for (i = 0; i < hashsize; i++)
+		VTAILQ_INIT(&hashtbl[i]);
+	*hashmask = hashsize - 1;
+	return (hashtbl);
+}
 
 static void
 LNK_start(void)
 {
 
-	rn_init(1024);
-	if (rn_inithead((void **)(void *)&link_rnhead, 0) == 0)
-		abort();
-}
-
-static struct link *
-LNK_new(const char *url)
-{
-	struct link *lk;
-	int len;
-
-	AN(url);
-	len = strlen(url);
-	assert(len > 0);
-	assert(len < 1024);
-	lk = calloc(sizeof(*lk) + sizeof(u_short) + len + 1 /* \0 */, 1);
-	AN(lk);
-	lk->magic = LINK_MAGIC;
-	lk->refcnt = 1;
-	lk->url = (char *)(lk + 1);
-	LINK_SETLEN(lk, len);
-	bcopy(url, lk->url + sizeof(u_short), len);
-	VTAILQ_INSERT_TAIL(&linkhead, lk, list);
-	return (lk);
-}
-
-static void
-LNK_delete(struct link *lk)
-{
-
-	assert(lk->refcnt == 0);
-	if ((lk->flags & LINK_F_ONTREE) != 0) {
-		struct link *old;
-		struct radix_node *rn;
-		struct radix_node_head *rnh = link_rnhead;
-
-		RADIX_NODE_HEAD_LOCK(rnh);
-		rn = rnh->rnh_del(lk->url, rnh);
-		if (rn == NULL)
-			assert(0 == 1);
-		else {
-			old = LINK_FROMRN(rn);
-			assert(old == lk);
-		}
-		RADIX_NODE_HEAD_UNLOCK(rnh);
-		lk->flags &= ~LINK_F_ONTREE;
-	}
-	free(lk);
+	linktbl = lnk_init(LINK_NHASH, &linkmask);
+	assert(linktbl != NULL);
 }
 
 static void
@@ -209,41 +181,37 @@ LNK_remref(struct link *lk)
 		assert(lk->refcnt > 0);
 		return;
 	}
-	LNK_delete(lk);
+	VTAILQ_REMOVE(lk->head, lk, list);
+	assert(lk->refcnt == 0);
+	free(lk->url);
+	free(lk);
 }
 
-#if 0
 static struct link *
-LNK_lookup(struct link *lk, int *created)
+LNK_lookup(const char *url)
 {
-	struct link *new;
-	struct radix_node *rn;
-	struct radix_node_head *rnh = link_rnhead;
+	struct link *lk;
+	struct linkhead *lh;
 
-	*created = 0;
-	RADIX_NODE_HEAD_LOCK(rnh);
-	rn = rnh->rnh_match(lk->digest, rnh);
-	if (rn != NULL) {
-		new = LINK_FROMRN(rn);
-		assert(new == lk);
-		RADIX_NODE_HEAD_UNLOCK(rnh);
-		ATOMIC_ADD_FETCH(&new->refcnt, 1);
-		return (new);
+	AN(url);
+	lh = LINK_HASH(url, strlen(url));
+	VTAILQ_FOREACH(lk, lh, list) {
+		if (!strcmp(lk->url, url)) {
+			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
+			return (lk);
+		}
 	}
-	rn = rnh->rnh_add(lk->digest, rnh, lk->rt_nodes);
-	if (rn == NULL) {
-		RADIX_NODE_HEAD_UNLOCK(rnh);
-		return (NULL);
-	}
-	RADIX_NODE_HEAD_UNLOCK(rnh);
-	new = LINK_FROMRN(rn);
-	assert(new == lk);
-	new->flags |= LINK_F_ONTREE;
-	ATOMIC_ADD_FETCH(&new->refcnt, 1);
-	*created = 1;
-	return (new);
+	assert(lk == NULL);
+	lk = calloc(sizeof(*lk), 1);
+	AN(lk);
+	lk->magic = LINK_MAGIC;
+	lk->refcnt = 1;
+	lk->url = strdup(url);
+	AN(lk->url);
+	lk->head = lh;
+	VTAILQ_INSERT_HEAD(lh, lk, list);
+	return (lk);
 }
-#endif
 
 /*----------------------------------------------------------------------*/
 
@@ -477,7 +445,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	VTAILQ_INIT(&req->scripthead);
 	req->c = curl_easy_init();
 	AN(req->c);
-	code = curl_easy_setopt(req->c, CURLOPT_URL, LINK_URL(lk));
+	code = curl_easy_setopt(req->c, CURLOPT_URL, lk->url);
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, writebody);
 	assert(code == CURLE_OK);
@@ -500,21 +468,8 @@ REQ_newroot(struct worker *wrk, const char *url)
 {
 	struct link *lk;
 
-	lk = LNK_new(url);
+	lk = LNK_lookup(url);
 	AN(lk);
-#if 0
-	{
-		struct link *lk, *new;
-		int created;
-
-		new = LNK_lookup(lk, &created);
-		if (new != NULL && created == 0) {
-			printf("[INFO] Dup URL (%s), no need to fetch.\n", url);
-			LNK_remref(lk);
-			return;
-		}
-	}
-#endif
 	(void)REQ_new(wrk, NULL, lk);
 }
 
@@ -524,7 +479,7 @@ REQ_newchild(struct req *parent, const char *url)
 	struct link *lk;
 	struct req *req;
 
-	lk = LNK_new(url);
+	lk = LNK_lookup(url);
 	AN(lk);
 	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
@@ -562,6 +517,7 @@ REQ_free(struct req *req)
 static int
 urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 {
+	struct link *lk = req->link;
 	UriParserStateA state;
 	UriUriA absoluteBase;
 	UriUriA absoluteDest;
@@ -569,12 +525,14 @@ urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	int charsRequired;
 	int error = 0;
 
+	AN(lk);
+
 	/*
 	 * XXX Don't need to parse everytime.
 	 */
 	state.uri = &absoluteBase;
-	if (uriParseUriA(&state, LINK_URL(req->link)) != URI_SUCCESS) {
-		printf("Failed to parse URL %s\n", LINK_URL(req->link));
+	if (uriParseUriA(&state, lk->url) != URI_SUCCESS) {
+		printf("Failed to parse URL %s\n", lk->url);
 		error = -1;
 		goto fail0;
 	}
@@ -624,6 +582,7 @@ fail0:
 static void
 search_for_links(struct req *req, GumboNode* node)
 {
+	struct link *lk = req->link;
 	struct req *child;
 	GumboAttribute *href, *onclick, *src;
 	GumboNode *text;
@@ -631,6 +590,7 @@ search_for_links(struct req *req, GumboNode* node)
 	int i, ret;
 	char urlbuf[BUFSIZ];
 
+	AN(lk);
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
@@ -668,7 +628,7 @@ search_for_links(struct req *req, GumboNode* node)
 		text = node->v.element.children.data[0];
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
-			SCR_newbuffer(req, LINK_URL(req->link),
+			SCR_newbuffer(req, lk->url,
 			    text->v.text.start_pos.line, text->v.text.text);
 			break;
 		case GUMBO_NODE_WHITESPACE:
@@ -690,9 +650,12 @@ search_for_links(struct req *req, GumboNode* node)
 static void
 REQ_main(struct req *req)
 {
+	struct link *lk = req->link;
 	struct vsb *vsb = req->vsb;
 	CURLcode code;
 	char *content_type;
+
+	AN(lk);
 
 	VSB_finish(vsb);
 
@@ -702,7 +665,7 @@ REQ_main(struct req *req)
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_new(LINK_URL(req->link));
+		req->scriptpriv = EJS_new(lk->url);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,
@@ -724,10 +687,12 @@ REQ_final(struct req *req)
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
 		if (scr->type == SCRIPT_T_REQ) {
 			const struct req *tmp;
+			struct link *lk;
 
 			tmp = (const struct req *)scr->priv;
 			assert(tmp->magic == REQ_MAGIC);
-			EJS_eval(req->scriptpriv, LINK_URL(tmp->link), 1,
+			lk = tmp->link;
+			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->vsb), VSB_len(tmp->vsb));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
 			ptr = (const char *)scr->priv;
