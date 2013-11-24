@@ -66,9 +66,9 @@
  * do not cast explicitly, but always use the macro below.
  */
 #define LINK_FROMRN(p)	((struct link *)(p))
-#define LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->digest)))
-#define LINK_SETLEN(lk, v) ((*(u_short *)(lk->digest)) = (v))
-#define	LINK_URL(lk)	((char *)(lk->digest + 2))
+#define LINK_GETLEN(lk)	((int) (*(const u_short *)(lk->url)))
+#define LINK_SETLEN(lk, v) ((*(u_short *)(lk->url)) = (v))
+#define	LINK_URL(lk)	((char *)(lk->url + 2))
 
 struct link {
 	struct radix_node	rt_nodes[2]; /* tree glue, and other values */
@@ -84,7 +84,7 @@ struct link {
 #define	LINK_F_ONTREE		(1 << 0)
 #define	LINK_F_DONE		(1 << 1)
 	int			refcnt;
-	char			*digest;
+	char			*url;
 	VTAILQ_ENTRY(link)	list;
 };
 
@@ -170,9 +170,9 @@ HRD_new(const char *url)
 	AN(lk);
 	lk->magic = LINK_MAGIC;
 	lk->refcnt = 1;
-	lk->digest = (char *)(lk + 1);
+	lk->url = (char *)(lk + 1);
 	LINK_SETLEN(lk, len);
-	bcopy(url, lk->digest + sizeof(u_short), len);
+	bcopy(url, lk->url + sizeof(u_short), len);
 	VTAILQ_INSERT_TAIL(&linkhead, lk, list);
 	return (lk);
 }
@@ -188,7 +188,7 @@ HRD_delete(struct link *lk)
 		struct radix_node_head *rnh = link_rnhead;
 
 		RADIX_NODE_HEAD_LOCK(rnh);
-		rn = rnh->rnh_del(lk->digest, rnh);
+		rn = rnh->rnh_del(lk->url, rnh);
 		if (rn == NULL)
 			assert(0 == 1);
 		else {
