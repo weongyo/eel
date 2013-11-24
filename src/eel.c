@@ -469,6 +469,11 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	assert(mcode == CURLM_OK);
 	wrk->n_conns++;
 
+	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
+		lk->flags &= ~LINK_F_ONLINKCHAIN;
+		VTAILQ_REMOVE(&newlinkchain, lk, chain);
+	}
+
 	return (req);
 }
 
@@ -483,10 +488,6 @@ REQ_newroot(struct worker *wrk, const char *url)
 	req = REQ_new(wrk, NULL, lk);
 	if (req == NULL)
 		return;
-	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
-		lk->flags &= ~LINK_F_ONLINKCHAIN;
-		VTAILQ_REMOVE(&newlinkchain, lk, chain);
-	}
 }
 
 static struct req *
@@ -499,10 +500,6 @@ REQ_newchild(struct req *parent, const char *url)
 	AN(lk);
 	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
-	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
-		lk->flags &= ~LINK_F_ONLINKCHAIN;
-		VTAILQ_REMOVE(&newlinkchain, lk, chain);
-	}
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
 	parent->subreqs_count++;
