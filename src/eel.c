@@ -398,7 +398,8 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 
 	(void)c;
 
-	if (action == CURL_POLL_IN || action == CURL_POLL_OUT) {
+	if (action == CURL_POLL_IN || action == CURL_POLL_OUT ||
+	    action == CURL_POLL_INOUT) {
 		if (socketp != NULL) {
 			sp = (struct sess *)socketp;
 			assert(sp->magic == SESS_MAGIC);
