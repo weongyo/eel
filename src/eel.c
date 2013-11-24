@@ -66,6 +66,7 @@ struct link {
 	unsigned		magic;
 #define	LINK_MAGIC		0xc771947b
 	unsigned		flags;
+#define	LINK_F_ONLINKCHAIN	(1 << 0)
 #define	LINK_F_DONE		(1 << 1)
 	int			refcnt;
 	char			*url;
@@ -75,7 +76,7 @@ struct link {
 };
 
 static struct linkhead *linktbl;
-static struct linkhead linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
+static struct linkhead newlinkchain = VTAILQ_HEAD_INITIALIZER(newlinkchain);
 static u_long linkmask;
 
 struct worker;
@@ -185,8 +186,8 @@ LNK_remref(struct link *lk)
 		return;
 	}
 	VTAILQ_REMOVE(lk->head, lk, list);
-	if ((lk->flags & LINK_F_DONE) == 0)
-		VTAILQ_REMOVE(&linkchain, lk, chain);
+	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0)
+		VTAILQ_REMOVE(&newlinkchain, lk, chain);
 	assert(lk->refcnt == 0);
 	free(lk->url);
 	free(lk);
@@ -210,12 +211,13 @@ LNK_lookup(const char *url)
 	lk = calloc(sizeof(*lk), 1);
 	AN(lk);
 	lk->magic = LINK_MAGIC;
+	lk->flags |= LINK_F_ONLINKCHAIN;
 	lk->refcnt = 1;
 	lk->url = strdup(url);
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
-	VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
+	VTAILQ_INSERT_TAIL(&newlinkchain, lk, chain);
 	return (lk);
 }
 
@@ -474,10 +476,17 @@ static void
 REQ_newroot(struct worker *wrk, const char *url)
 {
 	struct link *lk;
+	struct req *req;
 
 	lk = LNK_lookup(url);
 	AN(lk);
-	(void)REQ_new(wrk, NULL, lk);
+	req = REQ_new(wrk, NULL, lk);
+	if (req == NULL)
+		return;
+	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
+		lk->flags &= ~LINK_F_ONLINKCHAIN;
+		VTAILQ_REMOVE(&newlinkchain, lk, chain);
+	}
 }
 
 static struct req *
@@ -490,6 +499,10 @@ REQ_newchild(struct req *parent, const char *url)
 	AN(lk);
 	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
+	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
+		lk->flags &= ~LINK_F_ONLINKCHAIN;
+		VTAILQ_REMOVE(&newlinkchain, lk, chain);
+	}
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
 	parent->subreqs_count++;
@@ -666,7 +679,6 @@ REQ_main(struct req *req)
 	VSB_finish(vsb);
 	AN(lk);
 	lk->flags |= LINK_F_DONE;
-	VTAILQ_REMOVE(&linkchain, lk, chain);
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
