@@ -128,6 +128,7 @@ struct worker {
 	int			efd;
 	CURLM			*curlm;
 	VTAILQ_HEAD(, req)	reqhead;
+	struct callout		co_reqfire;
 	struct callout		co_timo;
 	struct callout_block	cb;
 	int			n_conns;
@@ -725,6 +726,16 @@ REQ_final(struct req *req)
 	REQ_free(req);
 }
 
+static void
+on_reqfire(void *arg)
+{
+	struct worker *wrk = (struct worker *)arg;
+
+	printf("REQFIRE\n");
+	callout_reset(&wrk->cb, &wrk->co_reqfire, CALLOUT_SECTOTICKS(1),
+	    on_reqfire, wrk);
+}
+
 static const char *starturl = "http://www.test.com/";
 
 static void *
@@ -750,7 +761,11 @@ core_main(void *arg)
 	assert(wrk.efd >= 0);
 	VTAILQ_INIT(&wrk.reqhead);
 	COT_init(&wrk.cb);
+	callout_init(&wrk.co_reqfire, 0);
 	callout_init(&wrk.co_timo, 0);
+
+	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
+	    on_reqfire, &wrk);
 
 	cm = curl_multi_init();
 	AN(cm);
