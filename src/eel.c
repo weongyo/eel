@@ -335,6 +335,8 @@ SES_eventadd(struct sess *sp, int want)
 		ev.events |= EPOLLIN | EPOLLPRI;
 	else if (want == 2)
 		ev.events |= EPOLLOUT;
+	else if (want == 3)
+		ev.events |= EPOLLIN | EPOLLOUT | EPOLLPRI;
 	else
 		assert(0 == 1);
 	ev.data.ptr = sp;
@@ -412,6 +414,9 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 		break;
 	case CURL_POLL_OUT:
 		SES_eventadd(sp, 2);
+		break;
+	case CURL_POLL_INOUT:
+		SES_eventadd(sp, 3);
 		break;
 	case CURL_POLL_REMOVE:
 		if (socketp != NULL) {
