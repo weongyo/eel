@@ -378,8 +378,11 @@ SES_alloc(struct worker *wrk, curl_socket_t fd)
 static void
 SES_free(struct sess *sp)
 {
+	int ret;
 
 	SES_eventdel(sp);
+	ret = close(sp->fd);
+	assert(ret == 0 || errno == EBADF);
 	sp->magic = 0;
 	free(sp);
 }
@@ -411,9 +414,9 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 		break;
 	case CURL_POLL_REMOVE:
 		if (socketp != NULL) {
+			curl_multi_assign(wrk->curlm, fd, NULL);
 			sp = (struct sess *)socketp;
 			SES_free(sp);
-			curl_multi_assign(wrk->curlm, fd, NULL);
 		}
 		break;
 	default:
@@ -668,7 +671,8 @@ search_for_links(struct req *req, GumboNode* node)
 				break;
 			}
 			printf("A HREF = %s\n", urlbuf);
-			LNK_newhref(urlbuf);
+			if (n_links < 100)
+				LNK_newhref(urlbuf);
 			break;
 		}
 		break;
