@@ -214,16 +214,28 @@ LNK_lookup(const char *url, int *created)
 	lk = calloc(sizeof(*lk), 1);
 	AN(lk);
 	lk->magic = LINK_MAGIC;
-	lk->flags |= LINK_F_ONLINKCHAIN;
 	lk->refcnt = 1;
 	lk->url = strdup(url);
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
-	VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
 	if (created != NULL)
 		*created = 1;
 	return (lk);
+}
+
+static void
+LNK_newhref(const char *url)
+{
+	struct link *lk;
+	int created;
+
+	lk = LNK_lookup(url, &created);
+	AN(lk);
+	if (created == 1) {
+		lk->flags |= LINK_F_ONLINKCHAIN;
+		VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
+	}
 }
 
 /*----------------------------------------------------------------------*/
@@ -634,6 +646,8 @@ search_for_links(struct req *req, GumboNode* node)
 				break;
 			}
 			printf("A HREF = %s\n", urlbuf);
+			LNK_newhref(urlbuf);
+			break;
 		}
 		break;
 	case GUMBO_TAG_SCRIPT:
