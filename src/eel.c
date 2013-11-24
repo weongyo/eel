@@ -397,9 +397,10 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	(void)c;
 
 	if (action == CURL_POLL_IN || action == CURL_POLL_OUT) {
-		if (socketp != NULL)
+		if (socketp != NULL) {
 			sp = (struct sess *)socketp;
-		else {
+			assert(sp->magic == SESS_MAGIC);
+		} else {
 			sp = SES_alloc(wrk, fd);
 			AN(sp);
 			curl_multi_assign(wrk->curlm, fd, (void *)sp);
