@@ -106,6 +106,7 @@ struct req {
 #define	REQ_MAGIC		0x9ba52f21
 	struct link		*link;
 	CURL			*c;
+	curl_socket_t		fd;
 	struct vsb		*vsb;
 	struct worker		*wrk;
 	VTAILQ_ENTRY(req)	list;
@@ -307,6 +308,7 @@ on_timeout(void *arg)
 
 	curl_multi_socket_action(wrk->curlm, CURL_SOCKET_TIMEOUT, 0,
 	    &running_handles);
+	printf("running_handles %d\n", running_handles);
 }
 
 static void
@@ -380,11 +382,8 @@ SES_alloc(struct worker *wrk, curl_socket_t fd)
 static void
 SES_free(struct sess *sp)
 {
-	int ret;
 
 	SES_eventdel(sp);
-	ret = close(sp->fd);
-	assert(ret == 0 || errno == EBADF);
 	sp->magic = 0;
 	free(sp);
 }
@@ -396,17 +395,23 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	struct sess *sp;
 	struct worker *wrk = (struct worker *)userp;
 
-	(void)c;
-
 	if (action == CURL_POLL_IN || action == CURL_POLL_OUT ||
 	    action == CURL_POLL_INOUT) {
 		if (socketp != NULL) {
 			sp = (struct sess *)socketp;
 			assert(sp->magic == SESS_MAGIC);
 		} else {
+			struct req *req;
+			CURLcode code;
+
 			sp = SES_alloc(wrk, fd);
 			AN(sp);
 			curl_multi_assign(wrk->curlm, fd, (void *)sp);
+
+			code = curl_easy_getinfo(c, CURLINFO_PRIVATE, &req);
+			assert(code == CURLE_OK);
+			assert(req->magic == REQ_MAGIC);
+			req->fd = fd;
 		}
 	}
 	switch (action) {
