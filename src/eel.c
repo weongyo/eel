@@ -148,7 +148,7 @@ struct worker {
 static struct radix_node_head *link_rnhead;
 
 static void
-HRD_start(void)
+LNK_start(void)
 {
 
 	rn_init(1024);
@@ -157,7 +157,7 @@ HRD_start(void)
 }
 
 static struct link *
-HRD_new(const char *url)
+LNK_new(const char *url)
 {
 	struct link *lk;
 	int len;
@@ -178,7 +178,7 @@ HRD_new(const char *url)
 }
 
 static void
-HRD_delete(struct link *lk)
+LNK_delete(struct link *lk)
 {
 
 	assert(lk->refcnt == 0);
@@ -202,19 +202,19 @@ HRD_delete(struct link *lk)
 }
 
 static void
-HRD_remref(struct link *lk)
+LNK_remref(struct link *lk)
 {
 
 	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
 		assert(lk->refcnt > 0);
 		return;
 	}
-	HRD_delete(lk);
+	LNK_delete(lk);
 }
 
 #if 0
 static struct link *
-HRD_lookup(struct link *lk, int *created)
+LNK_lookup(struct link *lk, int *created)
 {
 	struct link *new;
 	struct radix_node *rn;
@@ -500,17 +500,17 @@ REQ_newroot(struct worker *wrk, const char *url)
 {
 	struct link *lk;
 
-	lk = HRD_new(url);
+	lk = LNK_new(url);
 	AN(lk);
 #if 0
 	{
 		struct link *lk, *new;
 		int created;
 
-		new = HRD_lookup(lk, &created);
+		new = LNK_lookup(lk, &created);
 		if (new != NULL && created == 0) {
 			printf("[INFO] Dup URL (%s), no need to fetch.\n", url);
-			HRD_remref(lk);
+			LNK_remref(lk);
 			return;
 		}
 	}
@@ -524,7 +524,7 @@ REQ_newchild(struct req *parent, const char *url)
 	struct link *lk;
 	struct req *req;
 
-	lk = HRD_new(url);
+	lk = LNK_new(url);
 	AN(lk);
 	req = REQ_new(parent->wrk, parent, lk);
 	AN(req);
@@ -555,7 +555,7 @@ REQ_free(struct req *req)
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
-	HRD_remref(req->link);
+	LNK_remref(req->link);
 	free(req);
 }
 
@@ -840,7 +840,7 @@ main(int argc, char *argv[])
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
 	EJS_init();
-	HRD_start();
+	LNK_start();
 
 	for (i = 0; i < 1; i++) {
 		ret = pthread_create(&tid, NULL, core_main, NULL);
