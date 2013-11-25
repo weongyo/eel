@@ -46,14 +46,12 @@
 #include "vct.h"
 #include "vsb.h"
 
-#define	ATOMIC_ADD_FETCH(p, v) \
-	__sync_add_and_fetch((p), (v))
-#define	ATOMIC_SUB_FETCH(p, v) \
-	__sync_sub_and_fetch((p), (v))
+#define	ATOMIC_ADD_FETCH(p, v)	__sync_add_and_fetch((p), (v))
+#define	ATOMIC_SUB_FETCH(p, v)	__sync_sub_and_fetch((p), (v))
 #define	ATOMIC_COMPARE_SWAP(p, old, new) \
 	__sync_bool_compare_and_swap(p, old, new)
 
-#define	EPOLLEVENT_MAX	(4 * 1024)
+#define	EPOLLEVENT_MAX		(4 * 1024)
 
 #define	FNV1_32_INIT		((uint32_t) 33554467UL)
 #define	FNV_32_PRIME		((uint32_t) 0x01000193UL)
