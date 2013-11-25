@@ -140,6 +140,7 @@ struct worker {
 	struct reqmulti		*reqmulti_active;
 	VTAILQ_HEAD(, reqmulti)	reqmultihead;
 	int			efd;
+	struct callout		co_reqmulti;
 	struct callout		co_reqfire;
 	struct callout		co_timo;
 	struct callout_block	cb;
@@ -864,6 +865,20 @@ RQM_new(struct worker *wrk)
 	wrk->reqmulti_active = reqm;
 }
 
+static void
+RQM_free(struct reqmulti *reqm)
+{
+	struct worker *wrk;
+
+	assert(reqm->magic == REQMULTI_MAGIC);
+	wrk = reqm->wrk;
+	assert(wrk->magic == WORKER_MAGIC);
+
+	VTAILQ_REMOVE(&wrk->reqmultihead, reqm, list);
+	curl_multi_cleanup(reqm->curlm);
+	free(reqm);
+}
+
 static struct reqmulti *
 RQM_get(struct worker *wrk)
 {
@@ -873,6 +888,8 @@ RQM_get(struct worker *wrk)
 	AN(reqm);
 	reqm->busy++;
 	reqm->n_reqs++;
+	if (reqm->n_reqs > 512)
+		RQM_new(wrk);
 	return (reqm);
 }
 
@@ -882,6 +899,24 @@ RQM_release(struct reqmulti *reqm)
 
 	AN(reqm);
 	reqm->busy--;
+}
+
+static void
+RQM_calllout(void *arg)
+{
+	struct reqmulti *reqm, *reqmtmp;
+	struct worker *wrk = (struct worker *)arg;
+
+	VTAILQ_FOREACH_SAFE(reqm, &wrk->reqmultihead, list, reqmtmp) {
+		if (reqm == wrk->reqmulti_active)
+			continue;
+		if (reqm->busy > 0)
+			continue;
+		RQM_free(reqm);
+	}
+
+	callout_reset(&wrk->cb, &wrk->co_reqmulti, CALLOUT_SECTOTICKS(30),
+	    RQM_calllout, wrk);
 }
 
 /*----------------------------------------------------------------------*/
@@ -948,11 +983,14 @@ core_main(void *arg)
 	wrk.efd = epoll_create(1);
 	assert(wrk.efd >= 0);
 	COT_init(&wrk.cb);
+	callout_init(&wrk.co_reqmulti, 0);
 	callout_init(&wrk.co_reqfire, 0);
 	callout_init(&wrk.co_timo, 0);
 
 	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
 	    on_reqfire, &wrk);
+	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(30),
+	    RQM_calllout, &wrk);
 
 	RQM_new(&wrk);
 	REQ_newroot(&wrk, starturl);
