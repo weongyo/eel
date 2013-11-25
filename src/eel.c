@@ -86,7 +86,7 @@ struct sess {
 	unsigned		magic;
 #define	SESS_MAGIC		0xb733fc97
 	curl_socket_t		fd;
-	struct worker		*wrk;
+	struct reqmulti		*reqm;
 };
 
 struct script {
@@ -106,9 +106,8 @@ struct req {
 #define	REQ_MAGIC		0x9ba52f21
 	struct link		*link;
 	CURL			*c;
-	curl_socket_t		fd;
 	struct vsb		*vsb;
-	struct worker		*wrk;
+	struct reqmulti		*reqm;
 	VTAILQ_ENTRY(req)	list;
 
 	GumboOutput		*goutput;
@@ -124,17 +123,31 @@ struct req {
 	VTAILQ_HEAD(, script)	scripthead;
 };
 
+struct reqmulti {
+	unsigned		magic;
+#define	REQMULTI_MAGIC		0x6be15330
+	CURLM			*curlm;
+	int			busy;
+	int			n_reqs;
+	struct worker		*wrk;
+	VTAILQ_ENTRY(reqmulti)	list;
+};
+
 struct worker {
 	unsigned		magic;
 #define	WORKER_MAGIC		0x44505226
+	struct reqmulti		*reqmulti_active;
+	VTAILQ_HEAD(, reqmulti)	reqmultihead;
 	int			efd;
-	CURLM			*curlm;
 	VTAILQ_HEAD(, req)	reqhead;
 	struct callout		co_reqfire;
 	struct callout		co_timo;
 	struct callout_block	cb;
 	int			n_conns;
 };
+
+static struct reqmulti *
+	RQM_get(struct worker *wrk);
 
 /*----------------------------------------------------------------------*/
 
@@ -301,12 +314,15 @@ init_locks(void)
 static void
 on_timeout(void *arg)
 {
-	struct worker *wrk = (struct worker *)arg;
+	struct reqmulti *reqm = (struct reqmulti *)arg;
+	struct worker *wrk;
 	int running_handles;
 
+	assert(reqm->magic == REQMULTI_MAGIC);
+	wrk = reqm->wrk;
 	assert(wrk->magic == WORKER_MAGIC);
 
-	curl_multi_socket_action(wrk->curlm, CURL_SOCKET_TIMEOUT, 0,
+	curl_multi_socket_action(reqm->curlm, CURL_SOCKET_TIMEOUT, 0,
 	    &running_handles);
 	printf("running_handles %d\n", running_handles);
 }
@@ -314,15 +330,18 @@ on_timeout(void *arg)
 static void
 start_timeout(CURLM *cm, long timeout_ms, void *userp)
 {
-	struct worker *wrk = (struct worker *)userp;
+	struct reqmulti *reqm = (struct reqmulti *)userp;
+	struct worker *wrk;
 
 	(void)cm;
+	assert(reqm->magic == REQMULTI_MAGIC);
+	wrk = reqm->wrk;
 	assert(wrk->magic == WORKER_MAGIC);
 
 	if (timeout_ms <= 0)
 		timeout_ms = 1;
 	callout_reset(&wrk->cb, &wrk->co_timo, CALLOUT_MSTOTICKS(timeout_ms),
-	    on_timeout, wrk);
+	    on_timeout, reqm);
 }
 
 static void
@@ -342,11 +361,11 @@ SES_eventadd(struct sess *sp, int want)
 	else
 		assert(0 == 1);
 	ev.data.ptr = sp;
-	ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
+	ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
 	if (ret == -1) {
 		if (errno == EEXIST)
-			ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_MOD, sp->fd,
-			    &ev);
+			ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_MOD,
+			    sp->fd, &ev);
 	}
 	assert(ret == 0);
 }
@@ -357,7 +376,7 @@ SES_eventdel(struct sess *sp)
 	struct epoll_event ev = { 0 , { 0 } };
 	int ret;
 
-	ret = epoll_ctl(sp->wrk->efd, EPOLL_CTL_DEL, sp->fd, &ev);
+	ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_DEL, sp->fd, &ev);
 	if (ret != 0) {
 		if (errno == EBADF)
 			return;
@@ -367,7 +386,7 @@ SES_eventdel(struct sess *sp)
 }
 
 static struct sess *
-SES_alloc(struct worker *wrk, curl_socket_t fd)
+SES_alloc(struct reqmulti *reqm, curl_socket_t fd)
 {
 	struct sess *sp;
 
@@ -375,7 +394,7 @@ SES_alloc(struct worker *wrk, curl_socket_t fd)
 	assert(sp != NULL);
 	sp->magic = SESS_MAGIC;
 	sp->fd = fd;
-	sp->wrk = wrk;
+	sp->reqm = reqm;
 	return (sp);
 }
 
@@ -393,7 +412,13 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
     void *socketp)
 {
 	struct sess *sp;
-	struct worker *wrk = (struct worker *)userp;
+	struct reqmulti *reqm = (struct reqmulti *)userp;
+	struct worker *wrk;
+
+	(void)c;
+	assert(reqm->magic == REQMULTI_MAGIC);
+	wrk = reqm->wrk;
+	assert(wrk->magic == WORKER_MAGIC);
 
 	if (action == CURL_POLL_IN || action == CURL_POLL_OUT ||
 	    action == CURL_POLL_INOUT) {
@@ -401,17 +426,9 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 			sp = (struct sess *)socketp;
 			assert(sp->magic == SESS_MAGIC);
 		} else {
-			struct req *req;
-			CURLcode code;
-
-			sp = SES_alloc(wrk, fd);
+			sp = SES_alloc(reqm, fd);
 			AN(sp);
-			curl_multi_assign(wrk->curlm, fd, (void *)sp);
-
-			code = curl_easy_getinfo(c, CURLINFO_PRIVATE, &req);
-			assert(code == CURLE_OK);
-			assert(req->magic == REQ_MAGIC);
-			req->fd = fd;
+			curl_multi_assign(reqm->curlm, fd, (void *)sp);
 		}
 	}
 	switch (action) {
@@ -426,7 +443,7 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 		break;
 	case CURL_POLL_REMOVE:
 		if (socketp != NULL) {
-			curl_multi_assign(wrk->curlm, fd, NULL);
+			curl_multi_assign(reqm->curlm, fd, NULL);
 			sp = (struct sess *)socketp;
 			SES_free(sp);
 		}
@@ -491,6 +508,7 @@ static struct req *
 REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 {
 	struct req *req;
+	struct reqmulti *reqm;
 	CURLcode code;
 	CURLMcode mcode;
 
@@ -500,7 +518,6 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	AN(req);
 	req->magic = REQ_MAGIC;
 	req->link = lk;
-	req->wrk = wrk;
 	req->vsb = VSB_new_auto();
 	req->parent = parent;
 	VTAILQ_INIT(&req->subreqs);
@@ -518,8 +535,11 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	code = curl_easy_setopt(req->c, CURLOPT_PRIVATE, req);
 	assert(code == CURLE_OK);
 
+	req->reqm = reqm = RQM_get(wrk);
+	AN(req->reqm);
+
 	VTAILQ_INSERT_TAIL(&wrk->reqhead, req, list);
-	mcode = curl_multi_add_handle(wrk->curlm, req->c);
+	mcode = curl_multi_add_handle(reqm->curlm, req->c);
 	assert(mcode == CURLM_OK);
 	wrk->n_conns++;
 
@@ -554,10 +574,11 @@ REQ_newchild(struct req *parent, const char *url)
 {
 	struct link *lk;
 	struct req *req;
+	struct reqmulti *reqm = parent->reqm;
 
 	lk = LNK_lookup(url, NULL);
 	AN(lk);
-	req = REQ_new(parent->wrk, parent, lk);
+	req = REQ_new(reqm->wrk, parent, lk);
 	AN(req);
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
@@ -569,9 +590,11 @@ REQ_newchild(struct req *parent, const char *url)
 static void
 REQ_free(struct req *req)
 {
+	struct reqmulti *reqm = req->reqm;
 	struct script *scr;
-	struct worker *wrk = req->wrk;
+	struct worker *wrk;
 
+	wrk = reqm->wrk;
 	assert(wrk->magic == WORKER_MAGIC);
 	wrk->n_conns--;
 
@@ -582,7 +605,7 @@ REQ_free(struct req *req)
 	VTAILQ_FOREACH(scr, &req->scripthead, list)
 		SCR_free(scr);
 
-	curl_multi_remove_handle(wrk->curlm, req->c);
+	curl_multi_remove_handle(reqm->curlm, req->c);
 	VTAILQ_REMOVE(&wrk->reqhead, req, list);
 
 	curl_easy_cleanup(req->c);
@@ -810,71 +833,56 @@ on_reqfire(void *arg)
 	    on_reqfire, wrk);
 }
 
-static const char *starturl = "http://www.test.com/";
+/*----------------------------------------------------------------------*/
 
-static void *
-core_main(void *arg)
+static void
+RQM_new(struct worker *wrk)
 {
-	struct epoll_event ev[EPOLLEVENT_MAX], *ep;
-	struct req *parent, *req;
-	struct sess *sp;
-	struct worker wrk;
-	CURLcode code;
-	CURLM *cm;
+	struct reqmulti *reqm;
 	CURLMcode mcode;
+
+	reqm = calloc(sizeof(*reqm), 1);
+	AN(reqm);
+	reqm->magic = REQMULTI_MAGIC;
+	reqm->curlm = curl_multi_init();
+	AN(reqm->curlm);
+	reqm->wrk = wrk;
+	mcode = curl_multi_setopt(reqm->curlm, CURLMOPT_SOCKETFUNCTION,
+	    handle_socket);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(reqm->curlm, CURLMOPT_SOCKETDATA, reqm);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(reqm->curlm, CURLMOPT_TIMERFUNCTION,
+	    start_timeout);
+	assert(mcode == CURLM_OK);
+	mcode = curl_multi_setopt(reqm->curlm, CURLMOPT_TIMERDATA, reqm);
+	assert(mcode == CURLM_OK);
+
+	VTAILQ_INSERT_TAIL(&wrk->reqmultihead, reqm, list);
+	wrk->reqmulti_active = reqm;
+}
+
+static struct reqmulti *
+RQM_get(struct worker *wrk)
+{
+
+	AN(wrk->reqmulti_active);
+	return (wrk->reqmulti_active);
+}
+
+/*----------------------------------------------------------------------*/
+
+static void
+core_fetch(struct worker *wrk)
+{
+	struct req *parent, *req;
+	struct reqmulti *reqm;
+	CURLcode code;
 	CURLMsg *msg;
-	int i, n;
 	int pending;
-	int running_handles;
 
-	(void)arg;
-
-	bzero(&wrk, sizeof(wrk));
-	wrk.magic = WORKER_MAGIC;
-	wrk.efd = epoll_create(1);
-	assert(wrk.efd >= 0);
-	VTAILQ_INIT(&wrk.reqhead);
-	COT_init(&wrk.cb);
-	callout_init(&wrk.co_reqfire, 0);
-	callout_init(&wrk.co_timo, 0);
-
-	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
-	    on_reqfire, &wrk);
-
-	cm = curl_multi_init();
-	AN(cm);
-	mcode = curl_multi_setopt(cm, CURLMOPT_SOCKETFUNCTION, handle_socket);
-	assert(mcode == CURLM_OK);
-	mcode = curl_multi_setopt(cm, CURLMOPT_SOCKETDATA, &wrk);
-	assert(mcode == CURLM_OK);
-	mcode = curl_multi_setopt(cm, CURLMOPT_TIMERFUNCTION, start_timeout);
-	assert(mcode == CURLM_OK);
-	mcode = curl_multi_setopt(cm, CURLMOPT_TIMERDATA, &wrk);
-	assert(mcode == CURLM_OK);
-	wrk.curlm = cm;
-
-	REQ_newroot(&wrk, starturl);
-
-	while (1) {
-		COT_ticks(&wrk.cb);
-		COT_clock(&wrk.cb);
-		n = epoll_wait(wrk.efd, ev, EPOLLEVENT_MAX, 1000);
-		for (ep = ev, i = 0; i < n; i++, ep++) {
-			sp = (struct sess *)ep->data.ptr;
-			AN(sp);
-			if (sp->magic != SESS_MAGIC) {
-				/*
-				 * It looks some code of curl missed to call
-				 * the callback to close the socket.
-				 */
-				continue;
-			}
-
-			mcode = curl_multi_socket_action(wrk.curlm, sp->fd,
-			    0, &running_handles);
-			assert(mcode == CURLM_OK);
-		}
-		while ((msg = curl_multi_info_read(wrk.curlm, &pending))) {
+	VTAILQ_FOREACH(reqm, &wrk->reqmultihead, list) {
+		while ((msg = curl_multi_info_read(reqm->curlm, &pending))) {
 			char *done_url;
 
 			switch (msg->msg) {
@@ -903,6 +911,59 @@ core_main(void *arg)
 				break;
 			}
 		}
+	}
+}
+
+static const char *starturl = "http://www.test.com/";
+
+static void *
+core_main(void *arg)
+{
+	struct epoll_event ev[EPOLLEVENT_MAX], *ep;
+	struct sess *sp;
+	struct worker wrk;
+	CURLMcode mcode;
+	int i, n;
+	int running_handles;
+
+	(void)arg;
+
+	bzero(&wrk, sizeof(wrk));
+	wrk.magic = WORKER_MAGIC;
+	VTAILQ_INIT(&wrk.reqmultihead);
+	wrk.efd = epoll_create(1);
+	assert(wrk.efd >= 0);
+	VTAILQ_INIT(&wrk.reqhead);
+	COT_init(&wrk.cb);
+	callout_init(&wrk.co_reqfire, 0);
+	callout_init(&wrk.co_timo, 0);
+
+	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
+	    on_reqfire, &wrk);
+
+	RQM_new(&wrk);
+	REQ_newroot(&wrk, starturl);
+
+	while (1) {
+		COT_ticks(&wrk.cb);
+		COT_clock(&wrk.cb);
+		n = epoll_wait(wrk.efd, ev, EPOLLEVENT_MAX, 1000);
+		for (ep = ev, i = 0; i < n; i++, ep++) {
+			sp = (struct sess *)ep->data.ptr;
+			AN(sp);
+			if (sp->magic != SESS_MAGIC) {
+				/*
+				 * It looks some code of curl missed to call
+				 * the callback to close the socket.
+				 */
+				continue;
+			}
+
+			mcode = curl_multi_socket_action(sp->reqm->curlm,
+			    sp->fd, 0, &running_handles);
+			assert(mcode == CURLM_OK);
+		}
+		core_fetch(&wrk);
 	}
 	return (NULL);
 }
