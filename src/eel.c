@@ -75,6 +75,8 @@ struct link {
 #define	LINK_F_JAVASCRIPT	(1 << 2)
 	int			refcnt;
 	char			*url;
+	char			*hdr_etag;
+	char			*hdr_last_modified;
 	struct linkhead		*head;
 	VTAILQ_ENTRY(link)	list;
 	VTAILQ_ENTRY(link)	chain;
@@ -598,7 +600,11 @@ req_splitheader(struct req *req)
 static void
 req_handleheader(struct req *req)
 {
-	char *hdr;
+	struct link *lk;
+	char *etag, *hdr;
+	char *last_modified;
+
+	CAST_OBJ_NOTNULL(lk, req->link, LINK_MAGIC);
 
 	req_splitheader(req);
 	if (!strcmp(req->resp[1], "301") || !strcmp(req->resp[1], "302")) {
@@ -606,6 +612,16 @@ req_handleheader(struct req *req)
 		if (hdr == NULL)
 			return;
 		LNK_newhref(req, hdr);
+	}
+	etag = req_findheader(req, "Etag");
+	if (etag != NULL) {
+		lk->hdr_etag = strdup(etag);
+		AN(lk->hdr_etag);
+	}
+	last_modified = req_findheader(req, "Last-Modified");
+	if (last_modified != NULL) {
+		lk->hdr_last_modified = strdup(last_modified);
+		AN(lk->hdr_last_modified);
 	}
 }
 
