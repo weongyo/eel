@@ -776,8 +776,20 @@ urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	UriUriA relativeSource;
 	int charsRequired;
 	int error = 0;
+	char *anchor;
+	const char *target = value;
+	char *newvalue;
 
 	AN(lk);
+	anchor = strrchr(value, '#');
+	if (anchor != NULL) {
+		newvalue = strdup(value);
+		AN(newvalue);
+		anchor = strrchr(newvalue, '#');
+		AN(anchor);
+		*anchor = '\0';
+		target = newvalue;
+	}
 
 	/*
 	 * XXX Don't need to parse everytime.
@@ -789,8 +801,8 @@ urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 		goto fail0;
 	}
 	state.uri = &relativeSource;
-	if (uriParseUriA(&state, value) != URI_SUCCESS) {
-		printf("Failed to parse URL %s\n", value);
+	if (uriParseUriA(&state, target) != URI_SUCCESS) {
+		printf("Failed to parse URL %s\n", target);
 		error = -1;
 		goto fail1;
 	}
@@ -828,6 +840,8 @@ fail1:
 	uriFreeUriMembersA(&relativeSource);
 fail0:
 	uriFreeUriMembersA(&absoluteBase);
+	if (target != value)
+		free(newvalue);
 	return (error);
 }
 
@@ -836,7 +850,7 @@ search_for_links(struct req *req, GumboNode* node)
 {
 	struct link *lk = req->link;
 	struct req *child;
-	GumboAttribute *href, *onclick, *src;
+	GumboAttribute *href, *onclick, *src, *type;
 	GumboNode *text;
 	GumboVector *children;
 	int i, ret;
@@ -863,6 +877,10 @@ search_for_links(struct req *req, GumboNode* node)
 		}
 		break;
 	case GUMBO_TAG_SCRIPT:
+		type = gumbo_get_attribute(&node->v.element.attributes, "type");
+		if (type != NULL &&
+		    strcasecmp(type->value, "text/javascript"))
+			break;
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
 		if (src != NULL) {
 			ret = urlnorm(req, src->value, urlbuf, sizeof(urlbuf));
