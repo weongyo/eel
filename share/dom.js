@@ -1464,7 +1464,6 @@ Location = function(url, doc, history) {
             $url = url;
             if ($history)
                 $history.add($url, 'href');
-            this.assign($url);
         },
         get search() {
             return (parts.query) ? '?' + parts.query : parts.query;
