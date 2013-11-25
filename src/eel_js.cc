@@ -282,6 +282,26 @@ envjs_getURL(JSContext *cx, unsigned int argc, jsval *vp)
 	return JS_TRUE;
 }
 
+static JSBool
+envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
+{
+	JSString *str;
+	jsval *argv = JS_ARGV(cx, vp);
+
+	if (argc < 1 ||
+	    !JSVAL_IS_STRING(argv[0])) {
+		JS_ReportError(cx, "Invalid arguments to ENVJS.collectURL.");
+		return (JS_FALSE);
+	}
+	str = JSVAL_TO_STRING(argv[0]);
+	AN(str);
+	JSAutoByteString url(cx, str);
+	LNK_newhref(url.ptr());
+
+	JS_SET_RVAL(cx, vp, JSVAL_VOID);
+	return JS_TRUE;
+}
+
 void *
 EJS_new(const char *url)
 {
@@ -318,6 +338,9 @@ EJS_new(const char *url)
 		printf("[ERROR] JS_DefineFunction() failed.\n");
 	envjs = JS_NewObject(ep->cx, NULL, NULL, NULL);
 	AN(envjs);
+	func = JS_DefineFunction(ep->cx, envjs, "collectURL", &envjs_collectURL,
+	    0, 0);
+	assert(func != NULL);
 	func = JS_DefineFunction(ep->cx, envjs, "getURL", &envjs_getURL, 0, 0);
 	assert(func != NULL);
 	val = OBJECT_TO_JSVAL(envjs);

@@ -254,7 +254,7 @@ LNK_lookup(const char *url, int *created)
 	return (lk);
 }
 
-static void
+void
 LNK_newhref(const char *url)
 {
 	struct link *lk;
@@ -1144,7 +1144,7 @@ core_fetch(struct worker *wrk, int n)
 						REQ_final(parent);
 				} else {
 					if (req->subreqs_onqueue == 0)
-						REQ_free(req);
+						REQ_final(req);
 				}
 				break;
 			default:

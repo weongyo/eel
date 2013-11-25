@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+/* eel.c */
+void	LNK_newhref(const char *url);
+
 /* eel_js.cc */
 int	EJS_init(void);
 void *	EJS_new(const char *url);

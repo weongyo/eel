@@ -1459,6 +1459,13 @@ Location = function(url, doc, history) {
         get href() {
             return $url;
         },
+        set href(url) {
+	    ENVJS.collectURL(url);
+            $url = url;
+            if ($history)
+                $history.add($url, 'href');
+            this.assign($url);
+        },
         get search() {
             return (parts.query) ? '?' + parts.query : parts.query;
         },
