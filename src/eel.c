@@ -106,7 +106,7 @@ struct req {
 #define	REQ_MAGIC		0x9ba52f21
 	struct link		*link;
 	CURL			*c;
-	struct vsb		*vsb;
+	struct vsb		*body;
 	struct reqmulti		*reqm;
 	VTAILQ_ENTRY(req)	list;
 
@@ -470,7 +470,7 @@ writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	size_t len = size * nmemb;
 	int ret;
 
-	ret = VSB_bcat(req->vsb, contents, len);
+	ret = VSB_bcat(req->body, contents, len);
 	AZ(ret);
 	return (len);
 }
@@ -527,7 +527,8 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	AN(req);
 	req->magic = REQ_MAGIC;
 	req->link = lk;
-	req->vsb = VSB_new_auto();
+	req->body = VSB_new_auto();
+	AN(req->body);
 	req->parent = parent;
 	VTAILQ_INIT(&req->subreqs);
 	VTAILQ_INIT(&req->scripthead);
@@ -618,7 +619,7 @@ REQ_free(struct req *req)
 	RQM_release(reqm);
 
 	curl_easy_cleanup(req->c);
-	VSB_delete(req->vsb);
+	VSB_delete(req->body);
 	LNK_remref(req->link);
 	free(req);
 }
@@ -763,7 +764,7 @@ static void
 REQ_main(struct req *req)
 {
 	struct link *lk = req->link;
-	struct vsb *vsb = req->vsb;
+	struct vsb *vsb = req->body;
 	CURLcode code;
 	char *content_type;
 
@@ -805,7 +806,7 @@ REQ_final(struct req *req)
 			CHECK_OBJ_NOTNULL(tmp, REQ_MAGIC);
 			lk = tmp->link;
 			EJS_eval(req->scriptpriv, lk->url, 1,
-			    VSB_data(tmp->vsb), VSB_len(tmp->vsb));
+			    VSB_data(tmp->body), VSB_len(tmp->body));
 		} else if (scr->type == SCRIPT_T_BUFFER) {
 			ptr = (const char *)scr->priv;
 			EJS_eval(req->scriptpriv, scr->filename, scr->line, ptr,
