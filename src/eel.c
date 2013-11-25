@@ -995,7 +995,7 @@ core_main(void *arg)
 
 	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
 	    on_reqfire, &wrk);
-	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(30),
+	callout_reset(&wrk.cb, &wrk.co_reqmulti, CALLOUT_SECTOTICKS(30),
 	    RQM_calllout, &wrk);
 
 	RQM_new(&wrk);
