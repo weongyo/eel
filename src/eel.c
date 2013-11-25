@@ -108,7 +108,7 @@ struct req {
 	unsigned		magic;
 #define	REQ_MAGIC		0x9ba52f21
 	unsigned		flags;
-#define	REQ_F_SPLITHEADER	(1 << 0)
+#define	REQ_F_PARSEHEADER	(1 << 0)
 	struct link		*link;
 	CURL			*c;
 	struct reqmulti		*reqm;
@@ -118,7 +118,7 @@ struct req {
 	 * Response-related variables.
 	 */
 	struct vsb		*header;
-	char			*headers[MAX_HDR];
+	char			*resp[MAX_HDR];
 	struct vsb		*body;
 	GumboOutput		*goutput;
 	const GumboOptions	*goptions;
@@ -159,6 +159,8 @@ struct worker {
 static struct reqmulti *
 		RQM_get(struct worker *wrk);
 static void	RQM_release(struct reqmulti *reqm);
+static int	urlnorm(struct req *req, const char *value, char *urlbuf,
+		    size_t urlbuflen);
 
 /*----------------------------------------------------------------------*/
 
@@ -258,6 +260,9 @@ LNK_newhref(const char *url)
 	int created;
 
 	if (strncasecmp(url, "http", 4))
+		return;
+
+	if (n_links > 100)
 		return;
 
 	lk = LNK_lookup(url, &created);
@@ -484,17 +489,35 @@ req_writeheader(void *contents, size_t size, size_t nmemb, void *userp)
 	return (len);
 }
 
+static char *
+req_findheader(struct req *req, const char *hdr)
+{
+	int n, l;
+	char * const *hh = req->resp;
+	char *r;
+
+	l = strlen(hdr);
+
+	for (n = 3; hh[n] != NULL; n++) {
+		if (strncasecmp(hdr, hh[n], l) || hh[n][l] != ':')
+			continue;
+		for (r = hh[n] + l + 1; vct_issp(*r); r++)
+			continue;
+		return (r);
+	}
+	return (NULL);
+}
+
 static void
 req_splitheader(struct req *req)
 {
 	char *p, *q, **hh;
 	int n;
-	char buf[20];
 
 	VSB_finish(req->header);
 
-	memset(req->headers, 0, sizeof req->headers);
-	hh = req->headers;
+	memset(req->resp, 0, sizeof req->resp);
+	hh = req->resp;
 
 	n = 0;
 	p = VSB_data(req->header);
@@ -549,6 +572,27 @@ req_splitheader(struct req *req)
 	assert(*p == '\0');
 }
 
+static void
+req_handleheader(struct req *req)
+{
+	int ret;
+	char *hdr;
+	char urlbuf[BUFSIZ];
+
+	req_splitheader(req);
+	if (!strcmp(req->resp[1], "301") || !strcmp(req->resp[1], "302")) {
+		hdr = req_findheader(req, "Location");
+		if (hdr == NULL)
+			return;
+		ret = urlnorm(req, hdr, urlbuf, sizeof(urlbuf));
+		if (ret == -1) {
+			printf("Failed to normalize URL.\n");
+			return;
+		}
+		LNK_newhref(urlbuf);
+	}
+}
+
 static size_t
 req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -556,9 +600,9 @@ req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	size_t len = size * nmemb;
 	int ret;
 
-	if ((req->flags & REQ_F_SPLITHEADER) == 0) {
-		req_splitheader(req);
-		req->flags |= REQ_F_SPLITHEADER;
+	if ((req->flags & REQ_F_PARSEHEADER) == 0) {
+		req_handleheader(req);
+		req->flags |= REQ_F_PARSEHEADER;
 	}
 	ret = VSB_bcat(req->body, contents, len);
 	AZ(ret);
@@ -814,8 +858,7 @@ search_for_links(struct req *req, GumboNode* node)
 				break;
 			}
 			printf("A HREF = %s\n", urlbuf);
-			if (n_links < 100)
-				LNK_newhref(urlbuf);
+			LNK_newhref(urlbuf);
 			break;
 		}
 		break;
@@ -866,9 +909,9 @@ REQ_main(struct req *req)
 	CURLcode code;
 	char *content_type;
 
-	if ((req->flags & REQ_F_SPLITHEADER) == 0) {
-		req_splitheader(req);
-		req->flags |= REQ_F_SPLITHEADER;
+	if ((req->flags & REQ_F_PARSEHEADER) == 0) {
+		req_handleheader(req);
+		req->flags |= REQ_F_PARSEHEADER;
 	}
 
 	VSB_finish(vsb);
