@@ -160,7 +160,7 @@ struct worker {
 static struct reqmulti *
 		RQM_get(struct worker *wrk);
 static void	RQM_release(struct reqmulti *reqm);
-static int	urlnorm(struct req *req, const char *value, char *urlbuf,
+static int	req_urlnorm(struct req *req, const char *value, char *urlbuf,
 		    size_t urlbuflen);
 
 /*----------------------------------------------------------------------*/
@@ -264,7 +264,7 @@ LNK_newhref(struct req *req, const char *url)
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 
-	ret = urlnorm(req, url, urlbuf, sizeof(urlbuf));
+	ret = req_urlnorm(req, url, urlbuf, sizeof(urlbuf));
 	if (ret == -1) {
 		printf("Failed to normalize URL.\n");
 		return;
@@ -782,7 +782,7 @@ REQ_free(struct req *req)
 }
 
 static int
-urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
+req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 {
 	struct link *lk = req->link;
 	UriParserStateA state;
@@ -897,7 +897,8 @@ req_walktree(struct req *req, GumboNode* node)
 			break;
 		src = gumbo_get_attribute(&node->v.element.attributes, "src");
 		if (src != NULL) {
-			ret = urlnorm(req, src->value, urlbuf, sizeof(urlbuf));
+			ret = req_urlnorm(req, src->value, urlbuf,
+			    sizeof(urlbuf));
 			if (ret == -1) {
 				printf("Failed to normalize URL.\n");
 				break;
