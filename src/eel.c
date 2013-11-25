@@ -538,7 +538,6 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 
 	req->reqm = reqm = RQM_get(wrk);
 	AN(req->reqm);
-	reqm->n_reqs++;
 	VTAILQ_INSERT_TAIL(&reqm->reqhead, req, list);
 	mcode = curl_multi_add_handle(reqm->curlm, req->c);
 	assert(mcode == CURLM_OK);
@@ -873,6 +872,7 @@ RQM_get(struct worker *wrk)
 	reqm = wrk->reqmulti_active;
 	AN(reqm);
 	reqm->busy++;
+	reqm->n_reqs++;
 	return (reqm);
 }
 
