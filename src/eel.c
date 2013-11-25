@@ -928,15 +928,18 @@ RQM_calllout(void *arg)
 /*----------------------------------------------------------------------*/
 
 static void
-core_fetch(struct worker *wrk)
+core_fetch(struct worker *wrk, int n)
 {
 	struct req *parent, *req;
 	struct reqmulti *reqm;
 	CURLcode code;
 	CURLMsg *msg;
 	int pending;
+	int running_handles;
 
 	VTAILQ_FOREACH(reqm, &wrk->reqmultihead, list) {
+		if (n == 0)
+			curl_multi_socket_all(reqm->curlm, &running_handles);
 		while ((msg = curl_multi_info_read(reqm->curlm, &pending))) {
 			char *done_url;
 
@@ -1020,7 +1023,7 @@ core_main(void *arg)
 			    sp->fd, 0, &running_handles);
 			assert(mcode == CURLM_OK);
 		}
-		core_fetch(&wrk);
+		core_fetch(&wrk, n);
 	}
 	return (NULL);
 }
