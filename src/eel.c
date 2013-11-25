@@ -781,6 +781,10 @@ urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	char *newvalue;
 
 	AN(lk);
+	/*
+	 * Removes '#' anchor marker because it doesn't be pointing the new
+	 * URL.
+	 */
 	anchor = strrchr(value, '#');
 	if (anchor != NULL) {
 		newvalue = strdup(value);
