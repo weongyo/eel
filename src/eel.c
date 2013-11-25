@@ -612,7 +612,7 @@ req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	 * If the real content length is over 256 Kbytes then abort the
 	 * connection.
 	 */
-	if (req->bodylen > 256 * 1024) {
+	if (req->bodylen > 512 * 1024) {
 		struct link *lk;
 
 		lk = req->link;
