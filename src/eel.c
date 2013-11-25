@@ -865,7 +865,7 @@ fail0:
 }
 
 static void
-search_for_links(struct req *req, GumboNode* node)
+req_walktree(struct req *req, GumboNode* node)
 {
 	struct link *lk = req->link;
 	struct req *child;
@@ -930,7 +930,7 @@ search_for_links(struct req *req, GumboNode* node)
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i)
-		search_for_links(req, (GumboNode *)children->data[i]);
+		req_walktree(req, (GumboNode *)children->data[i]);
 }
 
 static void
@@ -962,7 +962,7 @@ REQ_main(struct req *req)
 		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));
 		AN(req->goutput);
-		search_for_links(req, req->goutput->root);
+		req_walktree(req, req->goutput->root);
 	}
 }
 
