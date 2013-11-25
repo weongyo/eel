@@ -62,6 +62,11 @@
 #define	LINK_HASHVAL(x, y)	fnv_32_buf((x), (y), FNV1_32_INIT)
 #define	LINK_HASH(x, y)		(&linktbl[LINK_HASHVAL(x, y) & linkmask])
 
+#define	LINK_LOCK_INIT()	AZ(pthread_mutex_init(&link_lock, NULL))
+#define	LINK_LOCK()		AZ(pthread_mutex_lock(&link_lock))
+#define	LINK_UNLOCK()		AZ(pthread_mutex_unlock(&link_lock))
+#define	LINK_DESTROY()		AZ(pthread_mutex_destroy(&link_lock))
+
 VTAILQ_HEAD(linkhead, link);
 struct link {
 	unsigned		magic;
@@ -76,10 +81,11 @@ struct link {
 	VTAILQ_ENTRY(link)	chain;
 };
 
-static int n_links;
-static struct linkhead *linktbl;
-static struct linkhead linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
-static u_long linkmask;
+static pthread_mutex_t		link_lock;
+static int			n_links;
+static struct linkhead		*linktbl;
+static struct linkhead		linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
+static u_long			linkmask;
 
 struct worker;
 
@@ -203,6 +209,7 @@ static void
 LNK_start(void)
 {
 
+	LINK_LOCK_INIT();
 	linktbl = lnk_init(LINK_NHASH, &linkmask);
 	AN(linktbl);
 }
@@ -216,8 +223,10 @@ LNK_remref(struct link *lk)
 		return;
 	}
 	VTAILQ_REMOVE(lk->head, lk, list);
+	LINK_LOCK();
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0)
 		VTAILQ_REMOVE(&linkchain, lk, chain);
+	LINK_UNLOCK();
 	assert(lk->refcnt == 0);
 	free(lk->url);
 	free(lk);
@@ -232,10 +241,12 @@ LNK_lookup(const char *url, int *created)
 	AN(url);
 	if (created != NULL)
 		*created = 0;
+	LINK_LOCK();
 	lh = LINK_HASH(url, strlen(url));
 	VTAILQ_FOREACH(lk, lh, list) {
 		if (!strcmp(lk->url, url)) {
 			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
+			LINK_UNLOCK();
 			return (lk);
 		}
 	}
@@ -248,6 +259,7 @@ LNK_lookup(const char *url, int *created)
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
+	LINK_UNLOCK();
 	n_links++;
 	if (created != NULL)
 		*created = 1;
@@ -277,8 +289,10 @@ LNK_newhref(struct req *req, const char *url)
 	lk = LNK_lookup(urlbuf, &created);
 	AN(lk);
 	if (created == 1) {
+		LINK_LOCK();
 		lk->flags |= LINK_F_ONLINKCHAIN;
 		VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
+		LINK_UNLOCK();
 	}
 }
 
@@ -708,10 +722,12 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	assert(mcode == CURLM_OK);
 	wrk->n_conns++;
 
+	LINK_LOCK();
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
 		lk->flags &= ~LINK_F_ONLINKCHAIN;
 		VTAILQ_REMOVE(&linkchain, lk, chain);
 	}
+	LINK_UNLOCK();
 
 	return (req);
 }
@@ -1010,10 +1026,14 @@ REQ_fire(void *arg)
 
 	if (wrk->n_conns < 10) {
 		for (i = 0; i < 10; i++) {
+			LINK_LOCK();
 			lk = VTAILQ_FIRST(&linkchain);
-			if (lk == NULL)
+			if (lk == NULL) {
+				LINK_UNLOCK();
 				break;
+			}
 			VTAILQ_REMOVE(&linkchain, lk, chain);
+			LINK_UNLOCK();
 			REQ_new(wrk, NULL, lk);
 		}
 	}
