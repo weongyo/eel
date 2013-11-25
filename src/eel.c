@@ -72,6 +72,7 @@ struct link {
 	unsigned		flags;
 #define	LINK_F_ONLINKCHAIN	(1 << 0)
 #define	LINK_F_DONE		(1 << 1)
+#define	LINK_F_JAVASCRIPT	(1 << 2)
 	int			refcnt;
 	char			*url;
 	struct linkhead		*head;
@@ -287,6 +288,7 @@ LNK_newhref(struct req *req, const char *url)
 	lk = LNK_lookup(urlbuf, &created);
 	AN(lk);
 	if (created == 1) {
+		printf("NEW LINK= %s\n", urlbuf);
 		LINK_LOCK();
 		lk->flags |= LINK_F_ONLINKCHAIN;
 		VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
@@ -749,7 +751,7 @@ REQ_newroot(struct worker *wrk, const char *url)
 }
 
 static struct req *
-REQ_newchild(struct req *parent, const char *url)
+REQ_new_jssrc(struct req *parent, const char *url)
 {
 	struct link *lk;
 	struct req *req;
@@ -757,6 +759,7 @@ REQ_newchild(struct req *parent, const char *url)
 
 	lk = LNK_lookup(url, NULL);
 	AN(lk);
+	lk->flags |= LINK_F_JAVASCRIPT;
 	req = REQ_new(reqm->wrk, parent, lk);
 	AN(req);
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
@@ -899,7 +902,6 @@ req_walktree(struct req *req, GumboNode* node)
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
 		if (href != NULL) {
-			printf("A HREF = %s\n", href->value);
 			LNK_newhref(req, href->value);
 			break;
 		}
@@ -917,7 +919,7 @@ req_walktree(struct req *req, GumboNode* node)
 				printf("Failed to normalize URL.\n");
 				break;
 			}
-			child = REQ_newchild(req, urlbuf);
+			child = REQ_new_jssrc(req, urlbuf);
 			if (child != NULL)
 				SCR_newreq(req, child);
 			break;
