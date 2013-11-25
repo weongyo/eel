@@ -820,7 +820,7 @@ REQ_final(struct req *req)
 }
 
 static void
-on_reqfire(void *arg)
+REQ_fire(void *arg)
 {
 	struct link *lk;
 	struct worker *wrk = (struct worker *)arg;
@@ -839,7 +839,7 @@ on_reqfire(void *arg)
 	}
 
 	callout_reset(&wrk->cb, &wrk->co_reqfire, CALLOUT_SECTOTICKS(1),
-	    on_reqfire, wrk);
+	    REQ_fire, wrk);
 }
 
 /*----------------------------------------------------------------------*/
@@ -994,7 +994,7 @@ core_main(void *arg)
 	callout_init(&wrk.co_timo, 0);
 
 	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
-	    on_reqfire, &wrk);
+	    REQ_fire, &wrk);
 	callout_reset(&wrk.cb, &wrk.co_reqmulti, CALLOUT_SECTOTICKS(30),
 	    RQM_calllout, &wrk);
 
