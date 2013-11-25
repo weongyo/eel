@@ -147,7 +147,8 @@ struct worker {
 };
 
 static struct reqmulti *
-	RQM_get(struct worker *wrk);
+		RQM_get(struct worker *wrk);
+static void	RQM_release(struct reqmulti *reqm);
 
 /*----------------------------------------------------------------------*/
 
@@ -607,6 +608,7 @@ REQ_free(struct req *req)
 
 	curl_multi_remove_handle(reqm->curlm, req->c);
 	VTAILQ_REMOVE(&reqm->reqhead, req, list);
+	RQM_release(reqm);
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
@@ -866,9 +868,20 @@ RQM_new(struct worker *wrk)
 static struct reqmulti *
 RQM_get(struct worker *wrk)
 {
+	struct reqmulti *reqm;
 
-	AN(wrk->reqmulti_active);
-	return (wrk->reqmulti_active);
+	reqm = wrk->reqmulti_active;
+	AN(reqm);
+	reqm->busy++;
+	return (reqm);
+}
+
+static void
+RQM_release(struct reqmulti *reqm)
+{
+
+	AN(reqm);
+	reqm->busy--;
 }
 
 /*----------------------------------------------------------------------*/
