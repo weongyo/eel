@@ -243,8 +243,8 @@ LNK_lookup(const char *url, int *created)
 	lh = LINK_HASH(url, strlen(url));
 	VTAILQ_FOREACH(lk, lh, list) {
 		if (!strcmp(lk->url, url)) {
-			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
 			LINK_UNLOCK();
+			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
 			return (lk);
 		}
 	}
