@@ -255,18 +255,26 @@ LNK_lookup(const char *url, int *created)
 }
 
 void
-LNK_newhref(const char *url)
+LNK_newhref(struct req *req, const char *url)
 {
 	struct link *lk;
 	int created;
+	int ret;
+	char urlbuf[BUFSIZ];
 
-	if (strncasecmp(url, "http", 4))
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+
+	ret = urlnorm(req, url, urlbuf, sizeof(urlbuf));
+	if (ret == -1) {
+		printf("Failed to normalize URL.\n");
 		return;
-
+	}
+	if (strncasecmp(urlbuf, "http", 4))
+		return;
 	if (n_links > 100)
 		return;
 
-	lk = LNK_lookup(url, &created);
+	lk = LNK_lookup(urlbuf, &created);
 	AN(lk);
 	if (created == 1) {
 		lk->flags |= LINK_F_ONLINKCHAIN;
@@ -576,21 +584,14 @@ req_splitheader(struct req *req)
 static void
 req_handleheader(struct req *req)
 {
-	int ret;
 	char *hdr;
-	char urlbuf[BUFSIZ];
 
 	req_splitheader(req);
 	if (!strcmp(req->resp[1], "301") || !strcmp(req->resp[1], "302")) {
 		hdr = req_findheader(req, "Location");
 		if (hdr == NULL)
 			return;
-		ret = urlnorm(req, hdr, urlbuf, sizeof(urlbuf));
-		if (ret == -1) {
-			printf("Failed to normalize URL.\n");
-			return;
-		}
-		LNK_newhref(urlbuf);
+		LNK_newhref(req, hdr);
 	}
 }
 
@@ -884,13 +885,8 @@ search_for_links(struct req *req, GumboNode* node)
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
 		if (href != NULL) {
-			ret = urlnorm(req, href->value, urlbuf, sizeof(urlbuf));
-			if (ret == -1) {
-				printf("Failed to normalize URL.\n");
-				break;
-			}
-			printf("A HREF = %s\n", urlbuf);
-			LNK_newhref(urlbuf);
+			printf("A HREF = %s\n", href->value);
+			LNK_newhref(req, href->value);
 			break;
 		}
 		break;
@@ -960,7 +956,7 @@ REQ_main(struct req *req)
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_new(lk->url);
+		req->scriptpriv = EJS_new(lk->url, req);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,

@@ -45,6 +45,7 @@ struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
 	const char		*url;
+	void			*arg;
 	JSRuntime		*rt;
 	JSContext		*cx;
 	JSObject		*global;
@@ -285,6 +286,7 @@ envjs_getURL(JSContext *cx, unsigned int argc, jsval *vp)
 static JSBool
 envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 {
+	struct ejs_private *ep;
 	JSString *str;
 	jsval *argv = JS_ARGV(cx, vp);
 
@@ -293,17 +295,20 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 		JS_ReportError(cx, "Invalid arguments to ENVJS.collectURL.");
 		return (JS_FALSE);
 	}
+	CAST_OBJ_NOTNULL(ep, (struct ejs_private *)JS_GetContextPrivate(cx),
+	    EJS_PRIVATE_MAGIC);
+
 	str = JSVAL_TO_STRING(argv[0]);
 	AN(str);
 	JSAutoByteString url(cx, str);
-	LNK_newhref(url.ptr());
+	LNK_newhref((struct req *)ep->arg, url.ptr());
 
 	JS_SET_RVAL(cx, vp, JSVAL_VOID);
 	return JS_TRUE;
 }
 
 void *
-EJS_new(const char *url)
+EJS_new(const char *url, void *arg)
 {
 	struct ejs_private *ep;
 	JSBool ret;
@@ -318,6 +323,7 @@ EJS_new(const char *url)
 	AN(ep);
 	ep->magic = EJS_PRIVATE_MAGIC;
 	ep->url = url;
+	ep->arg = arg;
 	ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
 	AN(ep->rt);
 	JS_SetGCParameter(ep->rt, JSGC_MAX_BYTES, 0xffffffff);
