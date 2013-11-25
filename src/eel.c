@@ -464,7 +464,7 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 }
 
 static size_t
-writebody(void *contents, size_t size, size_t nmemb, void *userp)
+req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 {
 	struct req *req = (struct req *)userp;
 	size_t len = size * nmemb;
@@ -536,7 +536,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	AN(req->c);
 	code = curl_easy_setopt(req->c, CURLOPT_URL, lk->url);
 	assert(code == CURLE_OK);
-	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, writebody);
+	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, req_writebody);
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_WRITEDATA, (void *)req);
 	assert(code == CURLE_OK);
