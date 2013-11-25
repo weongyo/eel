@@ -43,6 +43,7 @@
 
 #include "callout.h"
 #include "eel.h"
+#include "vct.h"
 #include "vsb.h"
 
 #define	ATOMIC_ADD_FETCH(p, v) \
@@ -101,26 +102,34 @@ struct script {
 	VTAILQ_ENTRY(script)	list;
 };
 
+#define MAX_HDR		50
+
 struct req {
 	unsigned		magic;
 #define	REQ_MAGIC		0x9ba52f21
+	unsigned		flags;
+#define	REQ_F_SPLITHEADER	(1 << 0)
 	struct link		*link;
 	CURL			*c;
-	struct vsb		*body;
 	struct reqmulti		*reqm;
 	VTAILQ_ENTRY(req)	list;
 
+	/*
+	 * Response-related variables.
+	 */
+	struct vsb		*header;
+	char			*headers[MAX_HDR];
+	struct vsb		*body;
 	GumboOutput		*goutput;
 	const GumboOptions	*goptions;
+	void			*scriptpriv;
+	VTAILQ_HEAD(, script)	scripthead;
 
 	struct req		*parent;
 	int			subreqs_count;
 	int			subreqs_onqueue;
 	VTAILQ_HEAD(, req)	subreqs;
 	VTAILQ_ENTRY(req)	subreqs_list;
-
-	void			*scriptpriv;
-	VTAILQ_HEAD(, script)	scripthead;
 };
 
 struct reqmulti {
@@ -464,12 +473,93 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 }
 
 static size_t
+req_writeheader(void *contents, size_t size, size_t nmemb, void *userp)
+{
+	struct req *req = (struct req *)userp;
+	size_t len = size * nmemb;
+	int ret;
+
+	ret = VSB_bcat(req->header, contents, len);
+	AZ(ret);
+	return (len);
+}
+
+static void
+req_splitheader(struct req *req)
+{
+	char *p, *q, **hh;
+	int n;
+	char buf[20];
+
+	VSB_finish(req->header);
+
+	memset(req->headers, 0, sizeof req->headers);
+	hh = req->headers;
+
+	n = 0;
+	p = VSB_data(req->header);
+
+	/* PROTO */
+	while (vct_islws(*p))
+		p++;
+	hh[n++] = p;
+	while (!vct_islws(*p))
+		p++;
+	assert(!vct_iscrlf(*p));
+	*p++ = '\0';
+
+	/* STATUS */
+	while (vct_issp(*p))		/* XXX: H space only */
+		p++;
+	assert(!vct_iscrlf(*p));
+	hh[n++] = p;
+	while (!vct_islws(*p))
+		p++;
+	if (vct_iscrlf(*p)) {
+		hh[n++] = NULL;
+		q = p;
+		p += vct_skipcrlf(p);
+		*q = '\0';
+	} else {
+		*p++ = '\0';
+		/* MSG */
+		while (vct_issp(*p))		/* XXX: H space only */
+			p++;
+		hh[n++] = p;
+		while (!vct_iscrlf(*p))
+			p++;
+		q = p;
+		p += vct_skipcrlf(p);
+		*q = '\0';
+	}
+	assert(n == 3);
+
+	while (*p != '\0') {
+		assert(n < MAX_HDR);
+		if (vct_iscrlf(*p))
+			break;
+		hh[n++] = p++;
+		while (*p != '\0' && !vct_iscrlf(*p))
+			p++;
+		q = p;
+		p += vct_skipcrlf(p);
+		*q = '\0';
+	}
+	p += vct_skipcrlf(p);
+	assert(*p == '\0');
+}
+
+static size_t
 req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 {
 	struct req *req = (struct req *)userp;
 	size_t len = size * nmemb;
 	int ret;
 
+	if ((req->flags & REQ_F_SPLITHEADER) == 0) {
+		req_splitheader(req);
+		req->flags |= REQ_F_SPLITHEADER;
+	}
 	ret = VSB_bcat(req->body, contents, len);
 	AZ(ret);
 	return (len);
@@ -527,6 +617,8 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	AN(req);
 	req->magic = REQ_MAGIC;
 	req->link = lk;
+	req->header = VSB_new_auto();
+	AN(req->header);
 	req->body = VSB_new_auto();
 	AN(req->body);
 	req->parent = parent;
@@ -539,6 +631,11 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	code = curl_easy_setopt(req->c, CURLOPT_WRITEFUNCTION, req_writebody);
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_WRITEDATA, (void *)req);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_HEADERFUNCTION,
+	    req_writeheader);
+	assert(code == CURLE_OK);
+	code = curl_easy_setopt(req->c, CURLOPT_WRITEHEADER, (void *)req);
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_ACCEPT_ENCODING, "deflate");
 	assert(code == CURLE_OK);
@@ -620,6 +717,7 @@ REQ_free(struct req *req)
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->body);
+	VSB_delete(req->header);
 	LNK_remref(req->link);
 	free(req);
 }
@@ -767,6 +865,11 @@ REQ_main(struct req *req)
 	struct vsb *vsb = req->body;
 	CURLcode code;
 	char *content_type;
+
+	if ((req->flags & REQ_F_SPLITHEADER) == 0) {
+		req_splitheader(req);
+		req->flags |= REQ_F_SPLITHEADER;
+	}
 
 	VSB_finish(vsb);
 	AN(lk);
