@@ -130,6 +130,7 @@ struct reqmulti {
 	int			busy;
 	int			n_reqs;
 	struct worker		*wrk;
+	VTAILQ_HEAD(, req)	reqhead;
 	VTAILQ_ENTRY(reqmulti)	list;
 };
 
@@ -139,7 +140,6 @@ struct worker {
 	struct reqmulti		*reqmulti_active;
 	VTAILQ_HEAD(, reqmulti)	reqmultihead;
 	int			efd;
-	VTAILQ_HEAD(, req)	reqhead;
 	struct callout		co_reqfire;
 	struct callout		co_timo;
 	struct callout_block	cb;
@@ -538,7 +538,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	req->reqm = reqm = RQM_get(wrk);
 	AN(req->reqm);
 
-	VTAILQ_INSERT_TAIL(&wrk->reqhead, req, list);
+	VTAILQ_INSERT_TAIL(&reqm->reqhead, req, list);
 	mcode = curl_multi_add_handle(reqm->curlm, req->c);
 	assert(mcode == CURLM_OK);
 	wrk->n_conns++;
@@ -606,7 +606,7 @@ REQ_free(struct req *req)
 		SCR_free(scr);
 
 	curl_multi_remove_handle(reqm->curlm, req->c);
-	VTAILQ_REMOVE(&wrk->reqhead, req, list);
+	VTAILQ_REMOVE(&reqm->reqhead, req, list);
 
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->vsb);
@@ -857,6 +857,7 @@ RQM_new(struct worker *wrk)
 	assert(mcode == CURLM_OK);
 	mcode = curl_multi_setopt(reqm->curlm, CURLMOPT_TIMERDATA, reqm);
 	assert(mcode == CURLM_OK);
+	VTAILQ_INIT(&reqm->reqhead);
 
 	VTAILQ_INSERT_TAIL(&wrk->reqmultihead, reqm, list);
 	wrk->reqmulti_active = reqm;
@@ -933,7 +934,6 @@ core_main(void *arg)
 	VTAILQ_INIT(&wrk.reqmultihead);
 	wrk.efd = epoll_create(1);
 	assert(wrk.efd >= 0);
-	VTAILQ_INIT(&wrk.reqhead);
 	COT_init(&wrk.cb);
 	callout_init(&wrk.co_reqfire, 0);
 	callout_init(&wrk.co_timo, 0);
