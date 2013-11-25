@@ -120,6 +120,7 @@ struct req {
 	struct vsb		*header;
 	char			*resp[MAX_HDR];
 	struct vsb		*body;
+	uint64_t		bodylen;
 	GumboOutput		*goutput;
 	const GumboOptions	*goptions;
 	void			*scriptpriv;
@@ -606,6 +607,19 @@ req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	}
 	ret = VSB_bcat(req->body, contents, len);
 	AZ(ret);
+	req->bodylen += len;
+	/*
+	 * If the real content length is over 256 Kbytes then abort the
+	 * connection.
+	 */
+	if (req->bodylen > 256 * 1024) {
+		struct link *lk;
+
+		lk = req->link;
+		AN(lk);
+		printf("[WARN] Too big.  Aborts URL %s\n", lk->url);
+		return (-1);
+	}
 	return (len);
 }
 
