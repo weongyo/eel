@@ -192,7 +192,7 @@ LNK_start(void)
 {
 
 	linktbl = lnk_init(LINK_NHASH, &linkmask);
-	assert(linktbl != NULL);
+	AN(linktbl);
 }
 
 static void
@@ -227,7 +227,7 @@ LNK_lookup(const char *url, int *created)
 			return (lk);
 		}
 	}
-	assert(lk == NULL);
+	AZ(lk);
 	lk = calloc(sizeof(*lk), 1);
 	AN(lk);
 	lk->magic = LINK_MAGIC;
@@ -320,13 +320,11 @@ on_timeout(void *arg)
 	struct worker *wrk;
 	int running_handles;
 
-	assert(reqm->magic == REQMULTI_MAGIC);
-	wrk = reqm->wrk;
-	assert(wrk->magic == WORKER_MAGIC);
+	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 
 	curl_multi_socket_action(reqm->curlm, CURL_SOCKET_TIMEOUT, 0,
 	    &running_handles);
-	printf("running_handles %d\n", running_handles);
 }
 
 static void
@@ -336,9 +334,8 @@ start_timeout(CURLM *cm, long timeout_ms, void *userp)
 	struct worker *wrk;
 
 	(void)cm;
-	assert(reqm->magic == REQMULTI_MAGIC);
-	wrk = reqm->wrk;
-	assert(wrk->magic == WORKER_MAGIC);
+	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 
 	if (timeout_ms <= 0)
 		timeout_ms = 1;
@@ -350,7 +347,13 @@ static void
 SES_eventadd(struct sess *sp, int want)
 {
 	struct epoll_event ev;
+	struct reqmulti *reqm;
+	struct worker *wrk;
 	int ret;
+
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	CAST_OBJ_NOTNULL(reqm, sp->reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 
 	bzero(&ev, sizeof(ev));
 	ev.events = EPOLLERR;
@@ -363,28 +366,33 @@ SES_eventadd(struct sess *sp, int want)
 	else
 		assert(0 == 1);
 	ev.data.ptr = sp;
-	ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
+	ret = epoll_ctl(wrk->efd, EPOLL_CTL_ADD, sp->fd, &ev);
 	if (ret == -1) {
 		if (errno == EEXIST)
-			ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_MOD,
-			    sp->fd, &ev);
+			ret = epoll_ctl(wrk->efd, EPOLL_CTL_MOD, sp->fd, &ev);
 	}
-	assert(ret == 0);
+	AZ(ret);
 }
 
 static void
 SES_eventdel(struct sess *sp)
 {
 	struct epoll_event ev = { 0 , { 0 } };
+	struct reqmulti *reqm;
+	struct worker *wrk;
 	int ret;
 
-	ret = epoll_ctl(sp->reqm->wrk->efd, EPOLL_CTL_DEL, sp->fd, &ev);
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	CAST_OBJ_NOTNULL(reqm, sp->reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
+
+	ret = epoll_ctl(wrk->efd, EPOLL_CTL_DEL, sp->fd, &ev);
 	if (ret != 0) {
 		if (errno == EBADF)
 			return;
 		printf("eventdel %s\n", strerror(errno));
 	}
-	assert(ret == 0);
+	AZ(ret);
 }
 
 static struct sess *
@@ -393,7 +401,7 @@ SES_alloc(struct reqmulti *reqm, curl_socket_t fd)
 	struct sess *sp;
 
 	sp = calloc(1, sizeof(*sp));
-	assert(sp != NULL);
+	AN(sp);
 	sp->magic = SESS_MAGIC;
 	sp->fd = fd;
 	sp->reqm = reqm;
@@ -417,16 +425,15 @@ handle_socket(CURL *c, curl_socket_t fd, int action, void *userp,
 	struct reqmulti *reqm = (struct reqmulti *)userp;
 	struct worker *wrk;
 
+	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 	(void)c;
-	assert(reqm->magic == REQMULTI_MAGIC);
-	wrk = reqm->wrk;
-	assert(wrk->magic == WORKER_MAGIC);
 
 	if (action == CURL_POLL_IN || action == CURL_POLL_OUT ||
 	    action == CURL_POLL_INOUT) {
 		if (socketp != NULL) {
 			sp = (struct sess *)socketp;
-			assert(sp->magic == SESS_MAGIC);
+			CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 		} else {
 			sp = SES_alloc(reqm, fd);
 			AN(sp);
@@ -595,8 +602,8 @@ REQ_free(struct req *req)
 	struct script *scr;
 	struct worker *wrk;
 
-	wrk = reqm->wrk;
-	assert(wrk->magic == WORKER_MAGIC);
+	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 	wrk->n_conns--;
 
 	if (req->goutput != NULL)
@@ -795,7 +802,7 @@ REQ_final(struct req *req)
 			struct link *lk;
 
 			tmp = (const struct req *)scr->priv;
-			assert(tmp->magic == REQ_MAGIC);
+			CHECK_OBJ_NOTNULL(tmp, REQ_MAGIC);
 			lk = tmp->link;
 			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->vsb), VSB_len(tmp->vsb));
@@ -870,9 +877,8 @@ RQM_free(struct reqmulti *reqm)
 {
 	struct worker *wrk;
 
-	assert(reqm->magic == REQMULTI_MAGIC);
-	wrk = reqm->wrk;
-	assert(wrk->magic == WORKER_MAGIC);
+	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 
 	VTAILQ_REMOVE(&wrk->reqmultihead, reqm, list);
 	curl_multi_cleanup(reqm->curlm);
