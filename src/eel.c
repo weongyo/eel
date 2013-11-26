@@ -1015,14 +1015,26 @@ REQ_main(struct req *req)
 	VSB_finish(vsb);
 	AN(lk);
 	lk->flags |= LINK_F_DONE;
-	if ((lk->flags & LINK_F_JAVASCRIPT) != 0 &&
-	    (lk->flags & LINK_F_BODY) == 0) {
-		AZ(lk->body);
-		lk->body = VSB_new_auto();
-		AN(lk->body);
-		VSB_bcpy(lk->body, VSB_data(vsb), VSB_len(vsb));
-		VSB_finish(lk->body);
-		lk->flags |= LINK_F_BODY;
+	if ((lk->flags & LINK_F_JAVASCRIPT) != 0) {
+		if ((lk->flags & LINK_F_BODY) == 0) {
+			if (!strcmp(req->resp[1], "200")) {
+				AZ(lk->body);
+				lk->body = VSB_new_auto();
+				AN(lk->body);
+				VSB_bcpy(lk->body, VSB_data(vsb), VSB_len(vsb));
+				VSB_finish(lk->body);
+				lk->flags |= LINK_F_BODY;
+			}
+		} else {
+			if (!strcmp(req->resp[1], "304")) {
+				assert(VSB_len(vsb) == 0);
+				VSB_clear(vsb);
+				assert(VSB_len(lk->body) > 0);
+				VSB_bcpy(vsb, VSB_data(lk->body),
+				    VSB_len(lk->body));
+				VSB_finish(vsb);
+			}
+		}
 	}
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
