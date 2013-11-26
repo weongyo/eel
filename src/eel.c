@@ -73,6 +73,7 @@ struct link {
 #define	LINK_F_ONLINKCHAIN	(1 << 0)
 #define	LINK_F_DONE		(1 << 1)
 #define	LINK_F_JAVASCRIPT	(1 << 2)
+#define	LINK_F_BODY		(1 << 3)
 	int			refcnt;
 	struct linkhead		*head;
 	uint32_t		n_lookup;
@@ -82,6 +83,7 @@ struct link {
 	char			*url;
 	char			*hdr_etag;
 	char			*hdr_last_modified;
+	struct vsb		*body;
 };
 
 static pthread_mutex_t		link_lock;
@@ -987,6 +989,15 @@ REQ_main(struct req *req)
 	VSB_finish(vsb);
 	AN(lk);
 	lk->flags |= LINK_F_DONE;
+	if ((lk->flags & LINK_F_JAVASCRIPT) != 0 &&
+	    (lk->flags & LINK_F_BODY) == 0) {
+		AZ(lk->body);
+		lk->body = VSB_new_auto();
+		AN(lk->body);
+		VSB_bcpy(lk->body, VSB_data(vsb), VSB_len(vsb));
+		VSB_finish(lk->body);
+		lk->flags |= LINK_F_BODY;
+	}
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
