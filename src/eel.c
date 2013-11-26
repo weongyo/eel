@@ -1094,28 +1094,41 @@ REQ_main(struct req *req)
 static void
 REQ_final(struct req *req)
 {
+	struct link *lk;
 	struct req *subreq;
+	const struct req *tmp;
 	struct script *scr;
 	const char *ptr;
 
 	AN(req->scriptpriv);
 
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
-		if (scr->type == SCRIPT_T_REQ) {
-			const struct req *tmp;
-			struct link *lk;
-
+		switch (scr->type) {
+		case SCRIPT_T_REQ:
 			tmp = (const struct req *)scr->priv;
 			CHECK_OBJ_NOTNULL(tmp, REQ_MAGIC);
 			lk = tmp->link;
 			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->body), VSB_len(tmp->body));
-		} else if (scr->type == SCRIPT_T_BUFFER) {
+			break;
+		case SCRIPT_T_BUFFER:
 			ptr = (const char *)scr->priv;
 			EJS_eval(req->scriptpriv, scr->filename, scr->line,
 			    ptr, strlen(ptr));
-		} else
+			break;
+		case SCRIPT_T_LINK:
+			lk = (struct link *)TRUST_ME(scr->priv);
+			CHECK_OBJ_NOTNULL(lk, LINK_MAGIC);
+			assert((lk->flags & LINK_F_JAVASCRIPT) != 0);
+			assert((lk->flags & LINK_F_DONE) != 0);
+			assert((lk->flags & LINK_F_BODY) != 0);
+			EJS_eval(req->scriptpriv, lk->url, 1,
+			    VSB_data(lk->body), VSB_len(lk->body));
+			LNK_remref(lk);
+			break;
+		default:
 			assert(0 == 1);
+		}
 	}
 
 	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list)

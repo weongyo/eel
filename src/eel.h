@@ -18,6 +18,7 @@
 		assert((to) != NULL);					\
 		CHECK_OBJ((to), (type_magic));				\
 	} while (0)
+#define	TRUST_ME(ptr)	((void*)(uintptr_t)(ptr))
 
 #ifdef __cplusplus
 extern "C" {
