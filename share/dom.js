@@ -1504,10 +1504,10 @@ Navigator = function() {
             return (true);
         },
         get mimeTypes() {
-	    DUMP(this);
+	    return [];
         },
         get platform() {
-	    DUMP(this);
+	    return "Linux x86_64";
         },
         get plugins() {
 	    return [];
