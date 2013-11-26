@@ -678,6 +678,9 @@ SCR_newreq(struct req *req, struct req *newone)
 {
 	struct script *scr;
 
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	CHECK_OBJ_NOTNULL(newone, REQ_MAGIC);
+
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
 	scr->magic = SCRIPT_MAGIC;
@@ -692,6 +695,8 @@ SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
     const char *buf)
 {
 	struct script *scr;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
@@ -708,6 +713,8 @@ static void
 SCR_newlink(struct req *req, struct link *lk)
 {
 	struct script *scr;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
@@ -1099,6 +1106,8 @@ REQ_final(struct req *req)
 	const struct req *tmp;
 	struct script *scr;
 	const char *ptr;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 
 	if (!VTAILQ_EMPTY(&req->scripthead))
 		AN(req->scriptpriv);
