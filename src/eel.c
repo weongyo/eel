@@ -814,9 +814,19 @@ REQ_new_jssrc(struct req *parent, const char *url)
 	struct link *lk;
 	struct req *req;
 	struct reqmulti *reqm = parent->reqm;
+	int created;
 
-	lk = LNK_lookup(url, NULL);
+	lk = LNK_lookup(url, &created);
 	AN(lk);
+	if (created == 0) {
+		double now = TIM_mono();
+
+		assert((lk->flags & LINK_F_JAVASCRIPT) != 0);
+		if ((lk->flags & LINK_F_BODY) != 0 &&
+		    (lk->flags & LINK_F_DONE) != 0 &&
+		    (now - lk->t_fetched) < 60 /* secs */) {
+		}
+	}
 	lk->flags |= LINK_F_JAVASCRIPT;
 	req = REQ_new(reqm->wrk, parent, lk);
 	AN(req);
