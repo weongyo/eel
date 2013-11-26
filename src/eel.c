@@ -290,7 +290,7 @@ LNK_newhref(struct req *req, const char *url)
 	lk = LNK_lookup(urlbuf, &created);
 	AN(lk);
 	if (created == 1) {
-		printf("NEW LINK= %s\n", urlbuf);
+		printf("[INFO] NEW LINK= %s\n", urlbuf);
 		LINK_LOCK();
 		lk->flags |= LINK_F_ONLINKCHAIN;
 		VTAILQ_INSERT_TAIL(&linkchain, lk, chain);
@@ -701,6 +701,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	CURLMcode mcode;
 
 	AN(lk);
+	printf("[INFO] Fetching %s\n", lk->url);
 
 	req = calloc(sizeof(*req), 1);
 	AN(req);
@@ -913,7 +914,7 @@ req_walktree(struct req *req, GumboNode* node)
 		return;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
 	if (onclick != NULL)
-		printf("ONCLICK = %s\n", onclick->value);
+		printf("[INFO] ONCLICK = %s\n", onclick->value);
 	switch (node->v.element.tag) {
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
@@ -985,7 +986,6 @@ REQ_main(struct req *req)
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
-	printf("%s: content-type %s\n", __func__, content_type);
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
 		AZ(req->scriptpriv);
@@ -1038,7 +1038,7 @@ REQ_fire(void *arg)
 	struct worker *wrk = (struct worker *)arg;
 	int i;
 
-	printf("REQFIRE n_links %d n_conns %d\n", n_links, wrk->n_conns);
+	printf("[INFO] REQFIRE n_links %d n_conns %d\n", n_links, wrk->n_conns);
 
 	if (wrk->n_conns < 10) {
 		for (i = 0; i < 10; i++) {
@@ -1169,7 +1169,6 @@ core_fetch(struct worker *wrk, int n)
 				assert(code == CURLE_OK);
 				assert(msg->easy_handle == req->c);
 				REQ_main(req);
-				printf("%s DONE (req %p)\n", done_url, req);
 				if (req->parent != NULL) {
 					parent = req->parent;
 					parent->subreqs_onqueue--;
