@@ -222,7 +222,7 @@ LNK_remref(struct link *lk)
 {
 
 	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
-		assert(lk->refcnt > 0);
+		assert(lk->refcnt >= 0);
 		ATOMIC_SUB_FETCH(&lk->refcnt, 1);
 		return;
 	}
