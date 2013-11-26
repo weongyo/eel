@@ -883,6 +883,8 @@ REQ_free(struct req *req)
 	struct script *scr;
 	struct worker *wrk;
 
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	assert(req->subreqs_onqueue == 0);
 	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
 	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
 	wrk->n_conns--;
@@ -1075,6 +1077,12 @@ REQ_main(struct req *req)
 	if ((lk->flags & LINK_F_JAVASCRIPT) != 0) {
 		if ((lk->flags & LINK_F_BODY) == 0) {
 			if (!strcmp(req->resp[1], "200")) {
+				/*
+				 * XXX We don't handle HTTP cache headers here.
+				 * e.g. Cache-Control: no-store,
+				 *      Pragma: no-cache,
+				 *      Expires: 0
+				 */
 				AZ(lk->body);
 				lk->body = VSB_new_auto();
 				AN(lk->body);
@@ -1099,6 +1107,14 @@ REQ_main(struct req *req)
 	assert(code == CURLE_OK);
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
+		/*
+		 * Don't need to parse the content if the link flags point
+		 * it's javascript assumed.
+		 */
+		if ((lk->flags & LINK_F_JAVASCRIPT) != 0) {
+			assert(content_type == NULL);
+			return;
+		}
 		AZ(req->scriptpriv);
 		req->scriptpriv = EJS_new(lk->url, req);
 		AN(req->scriptpriv);
@@ -1156,8 +1172,10 @@ REQ_final(struct req *req)
 		}
 	}
 
-	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list)
+	VTAILQ_FOREACH(subreq, &req->subreqs, subreqs_list) {
+		CHECK_OBJ_NOTNULL(subreq, REQ_MAGIC);
 		REQ_free(subreq);
+	}
 	REQ_free(req);
 }
 
