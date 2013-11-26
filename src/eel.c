@@ -109,6 +109,7 @@ struct script {
 #define	SCRIPT_T_REQ		1
 #define	SCRIPT_T_BUFFER		2
 	const void		*priv;
+	size_t			len;		/* only for SCRIPT_T_BUFFER */
 	const char		*filename;	/* only for SCRIPT_T_BUFFER */
 	unsigned int		line;		/* only for SCRIPT_T_BUFFER */	
 	VTAILQ_ENTRY(script)	list;
@@ -688,7 +689,7 @@ SCR_newreq(struct req *req, struct req *newone)
 
 static void
 SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
-    const char *buf)
+    const char *buf, size_t len)
 {
 	struct script *scr;
 
@@ -697,6 +698,7 @@ SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
 	scr->magic = SCRIPT_MAGIC;
 	scr->type = SCRIPT_T_BUFFER;
 	scr->priv = buf;
+	scr->len = len;
 	scr->filename = filename;
 	scr->line = line;
 
@@ -1002,7 +1004,8 @@ req_walktree(struct req *req, GumboNode* node)
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
 			SCR_newbuffer(req, lk->url,
-			    text->v.text.start_pos.line, text->v.text.text);
+			    text->v.text.start_pos.line, text->v.text.text,
+			    strlen(text->v.text.text));
 			break;
 		case GUMBO_NODE_WHITESPACE:
 			break;
@@ -1079,7 +1082,6 @@ REQ_final(struct req *req)
 {
 	struct req *subreq;
 	struct script *scr;
-	const char *ptr;
 
 	AN(req->scriptpriv);
 
@@ -1093,11 +1095,10 @@ REQ_final(struct req *req)
 			lk = tmp->link;
 			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->body), VSB_len(tmp->body));
-		} else if (scr->type == SCRIPT_T_BUFFER) {
-			ptr = (const char *)scr->priv;
-			EJS_eval(req->scriptpriv, scr->filename, scr->line, ptr,
-			    strlen(ptr));
-		} else
+		} else if (scr->type == SCRIPT_T_BUFFER)
+			EJS_eval(req->scriptpriv, scr->filename, scr->line,
+			    (const char *)scr->priv, scr->len);
+		else
 			assert(0 == 1);
 	}
 
