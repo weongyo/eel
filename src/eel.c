@@ -79,6 +79,7 @@ struct link {
 	uint32_t		n_lookup;
 	VTAILQ_ENTRY(link)	list;
 	VTAILQ_ENTRY(link)	chain;
+	VTAILQ_ENTRY(link)	expire_chain;
 	double			t_fetched;
 
 	char			*url;
@@ -91,6 +92,8 @@ static pthread_mutex_t		link_lock;
 static int			n_links;
 static struct linkhead		*linktbl;
 static struct linkhead		linkchain = VTAILQ_HEAD_INITIALIZER(linkchain);
+static struct linkhead		expire_linkchain =
+    VTAILQ_HEAD_INITIALIZER(expire_linkchain);
 static u_long			linkmask;
 
 struct worker;
@@ -274,11 +277,16 @@ LNK_lookup(const char *url, int *created)
 	lk = calloc(sizeof(*lk), 1);
 	AN(lk);
 	lk->magic = LINK_MAGIC;
-	lk->refcnt = 1;
+	/*
+	 * Two reference counters; one for expire_linkchain and another for
+	 * LNK_lookup().
+	 */
+	lk->refcnt = 2;
 	lk->url = strdup(url);
 	AN(lk->url);
 	lk->head = lh;
 	VTAILQ_INSERT_HEAD(lh, lk, list);
+	VTAILQ_INSERT_TAIL(&expire_linkchain, lk, expire_chain);
 	LINK_UNLOCK();
 	n_links++;
 	if (created != NULL)
@@ -1168,6 +1176,7 @@ REQ_fire(void *arg)
 				LINK_UNLOCK();
 				break;
 			}
+			lk->flags &= ~LINK_F_ONLINKCHAIN;
 			VTAILQ_REMOVE(&linkchain, lk, chain);
 			LINK_UNLOCK();
 			REQ_new(wrk, NULL, lk);
