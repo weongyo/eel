@@ -308,7 +308,7 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 }
 
 void *
-EJS_newone(void *arg)
+EJS_newraw(void *arg)
 {
 	struct ejs_private *ep;
 	uint32_t oldopts;
@@ -348,7 +348,7 @@ EJS_new(const char *url, void *arg)
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
-	ep = (struct ejs_private *)EJS_newone(arg);
+	ep = (struct ejs_private *)EJS_newraw(arg);
 	AN(ep);
 	ep->url = url;
 
