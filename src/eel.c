@@ -1108,6 +1108,7 @@ REQ_final(struct req *req)
 	const char *ptr;
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	assert(req->subreqs_onqueue == 0);
 
 	if (!VTAILQ_EMPTY(&req->scripthead))
 		AN(req->scriptpriv);
@@ -1288,6 +1289,7 @@ core_fetch(struct worker *wrk, int n)
 				REQ_main(req);
 				if (req->parent != NULL) {
 					parent = req->parent;
+					CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 					parent->subreqs_onqueue--;
 					if (parent->subreqs_onqueue == 0)
 						REQ_final(parent);
