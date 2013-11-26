@@ -79,6 +79,7 @@ struct link {
 	uint32_t		n_lookup;
 	VTAILQ_ENTRY(link)	list;
 	VTAILQ_ENTRY(link)	chain;
+	double			t_fetched;
 
 	char			*url;
 	char			*hdr_etag;
@@ -177,6 +178,16 @@ static int	req_urlnorm(struct req *req, const char *value, char *urlbuf,
 
 /*----------------------------------------------------------------------*/
 
+static double
+TIM_mono(void)
+{
+	struct timespec ts;
+
+	assert(clock_gettime(CLOCK_MONOTONIC, &ts) == 0);
+	return (ts.tv_sec + 1e-9 * ts.tv_nsec);
+}
+
+/*----------------------------------------------------------------------*/
 
 static uint32_t
 fnv_32_buf(const void *buf, size_t len, uint32_t hval)
@@ -1036,6 +1047,7 @@ REQ_main(struct req *req)
 			}
 		}
 	}
+	lk->t_fetched = TIM_mono();
 
 	code = curl_easy_getinfo(req->c, CURLINFO_CONTENT_TYPE, &content_type);
 	assert(code == CURLE_OK);
