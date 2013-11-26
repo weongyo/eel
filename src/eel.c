@@ -78,6 +78,7 @@ struct link {
 	char			*hdr_etag;
 	char			*hdr_last_modified;
 	struct linkhead		*head;
+	uint32_t		n_lookup;
 	VTAILQ_ENTRY(link)	list;
 	VTAILQ_ENTRY(link)	chain;
 };
@@ -246,6 +247,7 @@ LNK_lookup(const char *url, int *created)
 	lh = LINK_HASH(url, strlen(url));
 	VTAILQ_FOREACH(lk, lh, list) {
 		if (!strcmp(lk->url, url)) {
+			lk->n_lookup++;
 			LINK_UNLOCK();
 			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
 			return (lk);
