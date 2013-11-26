@@ -245,6 +245,9 @@ LNK_remref(struct link *lk)
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0)
 		VTAILQ_REMOVE(&linkchain, lk, chain);
 	LINK_UNLOCK();
+	VSB_delete(lk->body);
+	free(lk->hdr_last_modified);
+	free(lk->hdr_etag);
 	free(lk->url);
 	free(lk);
 }
