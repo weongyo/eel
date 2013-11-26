@@ -74,13 +74,14 @@ struct link {
 #define	LINK_F_DONE		(1 << 1)
 #define	LINK_F_JAVASCRIPT	(1 << 2)
 	int			refcnt;
-	char			*url;
-	char			*hdr_etag;
-	char			*hdr_last_modified;
 	struct linkhead		*head;
 	uint32_t		n_lookup;
 	VTAILQ_ENTRY(link)	list;
 	VTAILQ_ENTRY(link)	chain;
+
+	char			*url;
+	char			*hdr_etag;
+	char			*hdr_last_modified;
 };
 
 static pthread_mutex_t		link_lock;
