@@ -122,6 +122,7 @@ struct req {
 #define	REQ_F_PARSEHEADER	(1 << 0)
 	struct link		*link;
 	CURL			*c;
+	struct curl_slist	*slist;
 	struct reqmulti		*reqm;
 	VTAILQ_ENTRY(req)	list;
 
@@ -737,6 +738,29 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	assert(code == CURLE_OK);
 	code = curl_easy_setopt(req->c, CURLOPT_PRIVATE, req);
 	assert(code == CURLE_OK);
+	if ((lk->flags & LINK_F_DONE) != 0 &&
+	    (lk->flags & LINK_F_JAVASCRIPT) != 0 &&
+	    (lk->flags & LINK_F_BODY) != 0 &&
+	    (lk->hdr_etag != NULL || lk->hdr_last_modified != NULL)) {
+		int len;
+		char buf[BUFSIZ];
+
+		AN(lk->body);
+		if (lk->hdr_etag != NULL) {
+			len = snprintf(buf, sizeof(buf), "If-None-Match: %s",
+			    lk->hdr_etag);
+			assert(len < sizeof(buf));
+			req->slist = curl_slist_append(req->slist, buf);
+		}
+		if (lk->hdr_last_modified != NULL) {
+			len = snprintf(buf, sizeof(buf),
+			    "If-Modified-Since: %s", lk->hdr_last_modified);
+			assert(len < sizeof(buf));
+			req->slist = curl_slist_append(req->slist, buf);
+		}
+		code = curl_easy_setopt(req->c, CURLOPT_HTTPHEADER, req->slist);
+		assert(code == CURLE_OK);
+	}
 
 	req->reqm = reqm = RQM_get(wrk);
 	AN(req->reqm);
@@ -814,6 +838,8 @@ REQ_free(struct req *req)
 	VTAILQ_REMOVE(&reqm->reqhead, req, list);
 	RQM_release(reqm);
 
+	if (req->slist != NULL)
+		curl_slist_free_all(req->slist);
 	curl_easy_cleanup(req->c);
 	VSB_delete(req->body);
 	VSB_delete(req->header);
