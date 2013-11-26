@@ -751,7 +751,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	if (parent != NULL)
 		CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 	AN(lk);
-	printf("[INFO] Fetching %s\n", lk->url);
+	printf("[INFO] Fetching %s (parent %p)\n", lk->url, parent);
 
 	req = calloc(sizeof(*req), 1);
 	AN(req);
@@ -847,6 +847,8 @@ REQ_new_jssrc(struct req *parent, const char *url)
 	struct req *req;
 	struct reqmulti *reqm = parent->reqm;
 	int created;
+
+	CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 
 	lk = LNK_lookup(url, &created);
 	AN(lk);
@@ -1302,6 +1304,7 @@ core_fetch(struct worker *wrk, int n)
 					parent = req->parent;
 					CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 					parent->subreqs_onqueue--;
+					assert(parent->subreqs_onqueue >= 0);
 					if (parent->subreqs_onqueue == 0)
 						REQ_final(parent);
 				} else {
