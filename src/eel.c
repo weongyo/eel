@@ -1100,7 +1100,8 @@ REQ_final(struct req *req)
 	struct script *scr;
 	const char *ptr;
 
-	AN(req->scriptpriv);
+	if (!VTAILQ_EMPTY(&req->scripthead))
+		AN(req->scriptpriv);
 
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
 		CHECK_OBJ_NOTNULL(scr, SCRIPT_MAGIC);
@@ -1109,6 +1110,7 @@ REQ_final(struct req *req)
 			tmp = (const struct req *)scr->priv;
 			CHECK_OBJ_NOTNULL(tmp, REQ_MAGIC);
 			lk = tmp->link;
+			CHECK_OBJ_NOTNULL(lk, LINK_MAGIC);
 			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->body), VSB_len(tmp->body));
 			break;
