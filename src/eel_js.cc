@@ -308,21 +308,14 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 }
 
 void *
-EJS_new(const char *url, void *arg)
+EJS_newone(void *arg)
 {
 	struct ejs_private *ep;
-	JSBool ret;
-	JSFunction *func;
-	JSObject *envjs;
-	JSScript *script;
-	jsval val;
 	uint32_t oldopts;
-	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
 	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
 	AN(ep);
 	ep->magic = EJS_PRIVATE_MAGIC;
-	ep->url = url;
 	ep->arg = arg;
 	ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
 	AN(ep->rt);
@@ -340,6 +333,27 @@ EJS_new(const char *url, void *arg)
 	/* Set the context's global */
 	JSAutoCompartment ac(ep->cx, ep->global);
 	JS_SetGlobalObject(ep->cx, ep->global);
+	return ((void *)ep);
+}
+
+void *
+EJS_new(const char *url, void *arg)
+{
+	struct ejs_private *ep;
+	JSBool ret;
+	JSFunction *func;
+	JSObject *envjs;
+	JSScript *script;
+	jsval val;
+	uint32_t oldopts;
+	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
+
+	ep = (struct ejs_private *)EJS_newone(arg);
+	AN(ep);
+	ep->url = url;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
 	if (!JS_DefineFunction(ep->cx, ep->global, "DUMP", &dump, 1, 0))
 		printf("[ERROR] JS_DefineFunction() failed.\n");
 	envjs = JS_NewObject(ep->cx, NULL, NULL, NULL);
@@ -374,7 +388,6 @@ EJS_new(const char *url, void *arg)
 			first = 0;
 		}
 	}
-
 	return ((void *)ep);
 }
 
