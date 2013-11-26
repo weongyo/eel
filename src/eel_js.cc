@@ -337,7 +337,7 @@ EJS_newraw(void *arg)
 }
 
 void *
-EJS_new(const char *url, void *arg)
+EJS_newreq(const char *url, void *arg)
 {
 	struct ejs_private *ep;
 	JSBool ret;

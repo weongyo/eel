@@ -1119,7 +1119,7 @@ REQ_main(struct req *req)
 		if ((lk->flags & LINK_F_JAVASCRIPT) != 0)
 			return;
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_new(lk->url, req);
+		req->scriptpriv = EJS_newreq(lk->url, req);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,

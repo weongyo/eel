@@ -30,7 +30,8 @@ void	LNK_newhref(struct req *req, const char *url);
 
 /* eel_js.cc */
 int	EJS_init(void);
-void *	EJS_new(const char *url, void *arg);
+void *	EJS_newreq(const char *url, void *arg);
+void *	EJS_newraw(void *arg);
 void	EJS_free(void *arg);
 void	EJS_eval(void *arg, const char *filename, unsigned int line,
 	    const char *src, ssize_t len);
