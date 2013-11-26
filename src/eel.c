@@ -167,6 +167,7 @@ struct worker {
 	struct callout		co_timo;
 	struct callout_block	cb;
 	int			n_conns;
+	void			*confpriv;
 };
 
 static struct reqmulti *
@@ -1364,6 +1365,7 @@ core_main(void *arg)
 	callout_init(&wrk.co_reqmulti, 0);
 	callout_init(&wrk.co_reqfire, 0);
 	callout_init(&wrk.co_timo, 0);
+	wrk.confpriv = EJS_newraw(&wrk);
 
 	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
 	    REQ_fire, &wrk);
