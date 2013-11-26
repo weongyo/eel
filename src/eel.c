@@ -1103,6 +1103,7 @@ REQ_final(struct req *req)
 	AN(req->scriptpriv);
 
 	VTAILQ_FOREACH(scr, &req->scripthead, list) {
+		CHECK_OBJ_NOTNULL(scr, SCRIPT_MAGIC);
 		switch (scr->type) {
 		case SCRIPT_T_REQ:
 			tmp = (const struct req *)scr->priv;
