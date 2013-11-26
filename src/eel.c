@@ -108,8 +108,8 @@ struct script {
 	unsigned		type;
 #define	SCRIPT_T_REQ		1
 #define	SCRIPT_T_BUFFER		2
+#define	SCRIPT_T_LINK		3
 	const void		*priv;
-	size_t			len;		/* only for SCRIPT_T_BUFFER */
 	const char		*filename;	/* only for SCRIPT_T_BUFFER */
 	unsigned int		line;		/* only for SCRIPT_T_BUFFER */	
 	VTAILQ_ENTRY(script)	list;
@@ -689,7 +689,7 @@ SCR_newreq(struct req *req, struct req *newone)
 
 static void
 SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
-    const char *buf, size_t len)
+    const char *buf)
 {
 	struct script *scr;
 
@@ -698,9 +698,22 @@ SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
 	scr->magic = SCRIPT_MAGIC;
 	scr->type = SCRIPT_T_BUFFER;
 	scr->priv = buf;
-	scr->len = len;
 	scr->filename = filename;
 	scr->line = line;
+
+	VTAILQ_INSERT_TAIL(&req->scripthead, scr, list);
+}
+
+static void
+SCR_newlink(struct req *req, struct link *lk)
+{
+	struct script *scr;
+
+	scr = calloc(sizeof(*scr), 1);
+	AN(scr);
+	scr->magic = SCRIPT_MAGIC;
+	scr->type = SCRIPT_T_LINK;
+	scr->priv = lk;
 
 	VTAILQ_INSERT_TAIL(&req->scripthead, scr, list);
 }
@@ -827,9 +840,11 @@ REQ_new_jssrc(struct req *parent, const char *url)
 		if ((lk->flags & LINK_F_BODY) != 0 &&
 		    (lk->flags & LINK_F_DONE) != 0 &&
 		    (now - lk->t_fetched) < 60 /* secs */) {
-			SCR_newbuffer(parent, lk->url, 1, VSB_data(lk->body),
-			    VSB_len(lk->body));
-			LNK_remref(lk);
+			/*
+			 * Please note that the reference counter of `lk'
+			 * variable would be released REQ_final().
+			 */
+			SCR_newlink(parent, lk);
 			return;
 		}
 	}
@@ -1004,8 +1019,7 @@ req_walktree(struct req *req, GumboNode* node)
 		switch (text->type) {
 		case GUMBO_NODE_TEXT:
 			SCR_newbuffer(req, lk->url,
-			    text->v.text.start_pos.line, text->v.text.text,
-			    strlen(text->v.text.text));
+			    text->v.text.start_pos.line, text->v.text.text);
 			break;
 		case GUMBO_NODE_WHITESPACE:
 			break;
@@ -1082,6 +1096,7 @@ REQ_final(struct req *req)
 {
 	struct req *subreq;
 	struct script *scr;
+	const char *ptr;
 
 	AN(req->scriptpriv);
 
@@ -1095,10 +1110,11 @@ REQ_final(struct req *req)
 			lk = tmp->link;
 			EJS_eval(req->scriptpriv, lk->url, 1,
 			    VSB_data(tmp->body), VSB_len(tmp->body));
-		} else if (scr->type == SCRIPT_T_BUFFER)
+		} else if (scr->type == SCRIPT_T_BUFFER) {
+			ptr = (const char *)scr->priv;
 			EJS_eval(req->scriptpriv, scr->filename, scr->line,
-			    (const char *)scr->priv, scr->len);
-		else
+			    ptr, strlen(ptr));
+		} else
 			assert(0 == 1);
 	}
 
