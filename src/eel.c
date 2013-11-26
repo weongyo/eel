@@ -1113,10 +1113,8 @@ REQ_main(struct req *req)
 		 * Don't need to parse the content if the link flags point
 		 * it's javascript assumed.
 		 */
-		if ((lk->flags & LINK_F_JAVASCRIPT) != 0) {
-			assert(content_type == NULL);
+		if ((lk->flags & LINK_F_JAVASCRIPT) != 0)
 			return;
-		}
 		AZ(req->scriptpriv);
 		req->scriptpriv = EJS_new(lk->url, req);
 		AN(req->scriptpriv);
