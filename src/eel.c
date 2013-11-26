@@ -740,7 +740,8 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	CURLcode code;
 	CURLMcode mcode;
 
-	CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
+	if (parent != NULL)
+		CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 	AN(lk);
 	printf("[INFO] Fetching %s\n", lk->url);
 
