@@ -866,6 +866,8 @@ REQ_new_jssrc(struct req *parent, const char *url)
 			SCR_newlink(parent, lk);
 			return;
 		}
+		LNK_remref(lk);
+		return;
 	}
 	lk->flags |= LINK_F_JAVASCRIPT;
 	req = REQ_new(reqm->wrk, parent, lk);
