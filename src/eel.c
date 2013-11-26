@@ -810,7 +810,7 @@ REQ_newroot(struct worker *wrk, const char *url)
 		return;
 }
 
-static struct req *
+static void
 REQ_new_jssrc(struct req *parent, const char *url)
 {
 	struct link *lk;
@@ -827,16 +827,19 @@ REQ_new_jssrc(struct req *parent, const char *url)
 		if ((lk->flags & LINK_F_BODY) != 0 &&
 		    (lk->flags & LINK_F_DONE) != 0 &&
 		    (now - lk->t_fetched) < 60 /* secs */) {
+			SCR_newbuffer(parent, lk->url, 1, VSB_data(lk->body),
+			    VSB_len(lk->body));
+			LNK_remref(lk);
+			return;
 		}
 	}
 	lk->flags |= LINK_F_JAVASCRIPT;
 	req = REQ_new(reqm->wrk, parent, lk);
 	AN(req);
+	SCR_newreq(parent, req);
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
 	parent->subreqs_count++;
-
-	return (req);
 }
 
 static void
@@ -957,7 +960,6 @@ static void
 req_walktree(struct req *req, GumboNode* node)
 {
 	struct link *lk = req->link;
-	struct req *child;
 	GumboAttribute *href, *onclick, *src, *type;
 	GumboNode *text;
 	GumboVector *children;
@@ -991,9 +993,7 @@ req_walktree(struct req *req, GumboNode* node)
 				printf("Failed to normalize URL.\n");
 				break;
 			}
-			child = REQ_new_jssrc(req, urlbuf);
-			if (child != NULL)
-				SCR_newreq(req, child);
+			REQ_new_jssrc(req, urlbuf);
 			break;
 		}
 		if (node->v.element.children.length != 1) {
