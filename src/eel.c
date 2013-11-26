@@ -46,11 +46,6 @@
 #include "vct.h"
 #include "vsb.h"
 
-#define	ATOMIC_ADD_FETCH(p, v)	__sync_add_and_fetch((p), (v))
-#define	ATOMIC_SUB_FETCH(p, v)	__sync_sub_and_fetch((p), (v))
-#define	ATOMIC_COMPARE_SWAP(p, old, new) \
-	__sync_bool_compare_and_swap(p, old, new)
-
 #define	EPOLLEVENT_MAX		(4 * 1024)
 
 #define	FNV1_32_INIT		((uint32_t) 33554467UL)
@@ -239,17 +234,17 @@ static void
 LNK_remref(struct link *lk)
 {
 
-	if (!ATOMIC_COMPARE_SWAP(&lk->refcnt, 1, 0)) {
-		assert(lk->refcnt >= 0);
-		ATOMIC_SUB_FETCH(&lk->refcnt, 1);
+	LINK_LOCK();
+	lk->refcnt--;
+	assert(lk->refcnt >= 0);
+	if (lk->refcnt != 0) {
+		LINK_UNLOCK();
 		return;
 	}
 	VTAILQ_REMOVE(lk->head, lk, list);
-	LINK_LOCK();
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0)
 		VTAILQ_REMOVE(&linkchain, lk, chain);
 	LINK_UNLOCK();
-	assert(lk->refcnt == 0);
 	free(lk->url);
 	free(lk);
 }
@@ -267,9 +262,9 @@ LNK_lookup(const char *url, int *created)
 	lh = LINK_HASH(url, strlen(url));
 	VTAILQ_FOREACH(lk, lh, list) {
 		if (!strcmp(lk->url, url)) {
+			lk->refcnt++;
 			lk->n_lookup++;
 			LINK_UNLOCK();
-			ATOMIC_ADD_FETCH(&lk->refcnt, 1);
 			return (lk);
 		}
 	}
@@ -861,20 +856,12 @@ REQ_new_jssrc(struct req *parent, const char *url)
 	lk = LNK_lookup(url, &created);
 	AN(lk);
 	if (created == 0) {
-		double now = TIM_mono();
-
+		/*
+		 * Please note that the reference counter of `lk'
+		 * variable would be released REQ_final().
+		 */
 		assert((lk->flags & LINK_F_JAVASCRIPT) != 0);
-		if ((lk->flags & LINK_F_BODY) != 0 &&
-		    (lk->flags & LINK_F_DONE) != 0 &&
-		    (now - lk->t_fetched) < 60 /* secs */) {
-			/*
-			 * Please note that the reference counter of `lk'
-			 * variable would be released REQ_final().
-			 */
-			SCR_newlink(parent, lk);
-			return;
-		}
-		LNK_remref(lk);
+		SCR_newlink(parent, lk);
 		return;
 	}
 	lk->flags |= LINK_F_JAVASCRIPT;
