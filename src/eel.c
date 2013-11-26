@@ -1164,10 +1164,10 @@ REQ_final(struct req *req)
 			lk = (struct link *)TRUST_ME(scr->priv);
 			CHECK_OBJ_NOTNULL(lk, LINK_MAGIC);
 			assert((lk->flags & LINK_F_JAVASCRIPT) != 0);
-			assert((lk->flags & LINK_F_DONE) != 0);
-			assert((lk->flags & LINK_F_BODY) != 0);
-			EJS_eval(req->scriptpriv, lk->url, 1,
-			    VSB_data(lk->body), VSB_len(lk->body));
+			if ((lk->flags & LINK_F_DONE) != 0 &&
+			    (lk->flags & LINK_F_BODY) != 0)
+				EJS_eval(req->scriptpriv, lk->url, 1,
+				    VSB_data(lk->body), VSB_len(lk->body));
 			LNK_remref(lk);
 			break;
 		default:
