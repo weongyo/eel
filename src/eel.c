@@ -560,13 +560,15 @@ req_findheader(struct req *req, const char *hdr)
 	return (NULL);
 }
 
-static void
+static int
 req_splitheader(struct req *req)
 {
 	char *p, *q, **hh;
 	int n;
 
 	VSB_finish(req->header);
+	if (VSB_len(req->header) == 0)
+		return (-1);
 
 	memset(req->resp, 0, sizeof req->resp);
 	hh = req->resp;
@@ -622,22 +624,26 @@ req_splitheader(struct req *req)
 	}
 	p += vct_skipcrlf(p);
 	assert(*p == '\0');
+	return (0);
 }
 
-static void
+static int
 req_handleheader(struct req *req)
 {
 	struct link *lk;
+	int ret;
 	char *etag, *hdr;
 	char *last_modified;
 
 	CAST_OBJ_NOTNULL(lk, req->link, LINK_MAGIC);
 
-	req_splitheader(req);
+	ret = req_splitheader(req);
+	if (ret == -1)
+		return (-1);
 	if (!strcmp(req->resp[1], "301") || !strcmp(req->resp[1], "302")) {
 		hdr = req_findheader(req, "Location");
 		if (hdr == NULL)
-			return;
+			return (0);
 		LNK_newhref(req, hdr);
 	}
 	etag = req_findheader(req, "Etag");
@@ -650,6 +656,7 @@ req_handleheader(struct req *req)
 		lk->hdr_last_modified = strdup(last_modified);
 		AN(lk->hdr_last_modified);
 	}
+	return (0);
 }
 
 static size_t
@@ -660,8 +667,9 @@ req_writebody(void *contents, size_t size, size_t nmemb, void *userp)
 	int ret;
 
 	if ((req->flags & REQ_F_PARSEHEADER) == 0) {
-		req_handleheader(req);
 		req->flags |= REQ_F_PARSEHEADER;
+		ret = req_handleheader(req);
+		assert(ret == 0);
 	}
 	ret = VSB_bcat(req->body, contents, len);
 	AZ(ret);
@@ -1063,18 +1071,23 @@ req_walktree(struct req *req, GumboNode* node)
 static void
 REQ_main(struct req *req)
 {
-	struct link *lk = req->link;
-	struct vsb *vsb = req->body;
+	struct link *lk;
+	struct vsb *vsb;
 	CURLcode code;
+	int ret;
 	char *content_type;
 
-	if ((req->flags & REQ_F_PARSEHEADER) == 0) {
-		req_handleheader(req);
-		req->flags |= REQ_F_PARSEHEADER;
-	}
-
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	vsb = req->body;
 	VSB_finish(vsb);
-	AN(lk);
+	CAST_OBJ_NOTNULL(lk, req->link, LINK_MAGIC);
+
+	if ((req->flags & REQ_F_PARSEHEADER) == 0) {
+		req->flags |= REQ_F_PARSEHEADER;
+		ret = req_handleheader(req);
+		if (ret == -1)
+			return;
+	}
 	lk->flags |= LINK_F_DONE;
 	if ((lk->flags & LINK_F_JAVASCRIPT) != 0) {
 		if ((lk->flags & LINK_F_BODY) == 0) {
