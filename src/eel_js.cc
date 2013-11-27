@@ -494,7 +494,6 @@ JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 	if (!strcmp(name.ptr(), "url")) {
 		JSString *valstr;
 
-
 		valstr = JS_NewStringCopyZ(cx, RTJ_geturl(reqarg));
 		AN(valstr);
 		ret = JS_DefineProperty(cx, obj, name.ptr(),
@@ -542,6 +541,7 @@ JCL_fetch(void *arg, void *reqarg)
 	struct ejsconf *ep = (struct ejsconf *)arg;
 	JSBool ret;
 	JSObject *obj;
+	JSString *str;
 	jsval args[1], val;
 
 	if ((ep->flags & EJSCONF_F_CONFLOADED) == 0)
@@ -563,6 +563,18 @@ JCL_fetch(void *arg, void *reqarg)
 		printf("Wrong return type from `fetch' function.\n");
 		return (-1);
 	}
+	ret = JS_GetProperty(ep->cx, obj, "url", &val);
+	if (ret == JS_FALSE) {
+		printf("JS_GetProperty failed\n");
+		return (-1);
+	}
+	str = JS_ValueToString(ep->cx, val);
+	if (str == NULL) {
+		printf("JS_ValueToString failed\n");
+		return (-1);
+	}
+	JSAutoByteString url(ep->cx, str);
+	RTJ_replaceurl(reqarg, url.ptr());
 	ret = JSVAL_TO_BOOLEAN(val);
 	if (ret == JS_FALSE)
 		return (0);

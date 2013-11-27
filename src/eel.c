@@ -773,6 +773,20 @@ RTJ_isjavascript(void *reqarg)
 	return (0);
 }
 
+void
+RTJ_replaceurl(void *reqarg, const char *newurl)
+{
+	struct req *req = reqarg;
+	int created;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	if (!strcmp(req->link->url, newurl))
+		return;
+	LNK_remref(req->link);
+	req->link = LNK_lookup(newurl, &created);
+	AN(req->link);
+}
+
 /*----------------------------------------------------------------------*/
 
 static struct req *
@@ -787,7 +801,6 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	if (parent != NULL)
 		CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 	AN(lk);
-	printf("[INFO] Fetching %s (parent %p)\n", lk->url, parent);
 
 	LINK_LOCK();
 	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
@@ -813,6 +826,9 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 		REQ_free(req);
 		return (NULL);
 	}
+	lk = req->link;
+
+	printf("[INFO] Fetching %s (parent %p)\n", lk->url, parent);
 
 	req->c = curl_easy_init();
 	AN(req->c);
