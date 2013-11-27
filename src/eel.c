@@ -1129,9 +1129,12 @@ req_walktree(struct req *req, GumboNode *node, void **element0)
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i) {
-		void *element1;
+		void *element1 = NULL;
 
 		req_walktree(req, (GumboNode *)children->data[i], &element1);
+		if (element1 != NULL)
+			EJS_documentAppendChild(req->scriptpriv, *element0,
+			    element1);
 	}
 }
 

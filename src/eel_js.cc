@@ -467,15 +467,12 @@ EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
 		fprintf(stderr, "JS_EvaluateScript() error.\n");
 }
 
-void *
-EJS_documentCreateElement(void *arg, void *nodearg)
+static JSObject *
+EJS_getWindowDocument(void *arg)
 {
 	struct ejsconf *ep = (struct ejsconf *)arg;
-	GumboNode *node = (GumboNode *)nodearg;
 	JSBool ret;
-	JSString *str;
-	jsval args[1], val;
-	const char *name;
+	jsval val;
 
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
@@ -486,17 +483,53 @@ EJS_documentCreateElement(void *arg, void *nodearg)
 	ret = JS_GetProperty(ep->cx, JSVAL_TO_OBJECT(val), "document", &val);
 	assert(ret == JS_TRUE);
 	assert(!JSVAL_IS_PRIMITIVE(val));
+	return (JSVAL_TO_OBJECT(val));
+}
+
+void *
+EJS_documentCreateElement(void *arg, void *nodearg)
+{
+	struct ejsconf *ep = (struct ejsconf *)arg;
+	GumboNode *node = (GumboNode *)nodearg;
+	JSBool ret;
+	JSObject *document;
+	JSString *str;
+	jsval args[1], val;
+	const char *name;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+
+	document = EJS_getWindowDocument(ep);
+	AN(document);
 	name = gumbo_normalized_tagname(node->v.element.tag);
 	AN(name);
 	str = JS_NewStringCopyZ(ep->cx, name);
 	AN(str);
 	args[0] = STRING_TO_JSVAL(str);
-	ret = JS_CallFunctionName(ep->cx, JSVAL_TO_OBJECT(val), "createElement",
-	    1, args, &val);
+	ret = JS_CallFunctionName(ep->cx, document, "createElement", 1, args,
+	    &val);
 	if (ret == JS_FALSE)
 		return (NULL);
 	assert(!JSVAL_IS_PRIMITIVE(val));
 	return (JSVAL_TO_OBJECT(val));
+}
+
+void
+EJS_documentAppendChild(void *arg, void *nodearg0, void *nodearg1)
+{
+	struct ejsconf *ep = (struct ejsconf *)arg;
+	JSBool ret;
+	JSObject *parent = (JSObject *)nodearg0;
+	JSObject *child = (JSObject *)nodearg1;
+	jsval args[1], val;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+
+	args[0] = OBJECT_TO_JSVAL(child);
+	ret = JS_CallFunctionName(ep->cx, parent, "appendChild", 1, args, &val);
+	assert(ret == JS_TRUE);
 }
 
 /*----------------------------------------------------------------------*/

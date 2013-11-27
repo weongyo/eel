@@ -41,6 +41,7 @@ void	EJS_free(void *arg);
 void	EJS_eval(void *arg, const char *filename, unsigned int line,
 	    const char *src, ssize_t len);
 void *	EJS_documentCreateElement(void *arg, void *nodearg);
+void	EJS_documentAppendChild(void *arg, void *nodearg0, void *nodearg1);
 int	JCL_fetch(void *arg, void *reqarg);
 
 #ifdef __cplusplus
