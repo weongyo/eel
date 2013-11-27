@@ -35,6 +35,7 @@
 #include "jsprf.h"
 
 #include "eel.h"
+#include "gumbo.h"
 
 #define DEFAULT_MAX_STACK_SIZE 500000
 static size_t gMaxStackSize = DEFAULT_MAX_STACK_SIZE;

@@ -1065,7 +1065,7 @@ fail0:
 }
 
 static void
-req_walktree(struct req *req, GumboNode* node)
+req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
 {
 	struct link *lk = req->link;
 	GumboAttribute *href, *onclick, *src, *type;
@@ -1128,7 +1128,7 @@ req_walktree(struct req *req, GumboNode* node)
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i)
-		req_walktree(req, (GumboNode *)children->data[i]);
+		req_walktree(req, pnode, (GumboNode *)children->data[i]);
 }
 
 static void
@@ -1198,7 +1198,7 @@ REQ_main(struct worker *wrk, struct req *req)
 		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));
 		AN(req->goutput);
-		req_walktree(req, req->goutput->root);
+		req_walktree(req, NULL, req->goutput->root);
 	}
 }
 

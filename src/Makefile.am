@@ -15,7 +15,7 @@ eel_CFLAGS = -I$(prefix)/include -I$(prefix)/include/nspr \
 	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
 	-Wnested-externs -Wformat -Werror
 
-eel_CXXFLAGS = -I$(prefix)/include/nspr \
+eel_CXXFLAGS = -I$(prefix)/include -I$(prefix)/include/nspr \
 	-I$(prefix)/include/js-17.0 \
 	-Werror \
 	-DDEBUG -D__STDC_LIMIT_MACROS
