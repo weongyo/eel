@@ -1470,6 +1470,9 @@ Location = function(url, doc, history) {
     var parts = ENVJS.urlsplit($url);
 
     return {
+        assign: function(url) {
+	    ENVJS.collectURL(url);
+	},
         get href() {
             return $url;
         },
@@ -1478,6 +1481,9 @@ Location = function(url, doc, history) {
             $url = url;
             if ($history)
                 $history.add($url, 'href');
+        },
+        replace: function(url) {
+            this.assign(url);
         },
         get search() {
             return (parts.query) ? '?' + parts.query : parts.query;
@@ -1598,10 +1604,8 @@ Window = function(scope, parent, opener) {
             return scope;
         },
  	setInterval: function(fn, time) {
-	    DUMP(fn);
 	},
 	setTimeout: function(fn, time) {
-	    DUMP(fn);
 	},
         get top() {
             return __top__(scope);
