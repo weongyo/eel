@@ -227,6 +227,7 @@ global_enumerate(JSContext *cx, JSHandleObject obj)
 	ret = JS_EnumerateStandardClasses(cx, obj);
 	if (ret == JS_FALSE)
 		printf("%s:%d ENUM fail\n", __func__, __LINE__);
+	return (ret);
 }
 
 static JSBool
@@ -307,8 +308,8 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 	return JS_TRUE;
 }
 
-void *
-EJS_newraw(void *arg)
+static void *
+ejs_newraw(void *arg)
 {
 	struct ejs_private *ep;
 	uint32_t oldopts;
@@ -337,6 +338,39 @@ EJS_newraw(void *arg)
 }
 
 void *
+EJS_newwrk(void *arg)
+{
+	struct ejs_private *ep;
+	JSScript *script;
+	uint32_t oldopts;
+	const char *filename = "/opt/eel/" PACKAGE_VERSION "/etc/conf.js";
+
+	ep = (struct ejs_private *)ejs_newraw(arg);
+	AN(ep);
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+	do {
+		FILE *fp;
+
+		fp = fopen(filename, "r");
+		if (fp == NULL)
+			break;
+		AN(fp);
+		oldopts = JS_GetOptions(ep->cx);
+		JS_SetOptions(ep->cx, oldopts | JSOPTION_COMPILE_N_GO |
+		    JSOPTION_NO_SCRIPT_RVAL);
+		script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename,
+		    fp);
+		AN(script);
+		JS_SetOptions(ep->cx, oldopts);
+		if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
+			printf("[ERROR] JS_ExecuteScript() failed.\n");
+		fclose(fp);
+	} while (0);
+	return ((void *)ep);
+}
+
+void *
 EJS_newreq(const char *url, void *arg)
 {
 	struct ejs_private *ep;
@@ -348,7 +382,7 @@ EJS_newreq(const char *url, void *arg)
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
-	ep = (struct ejs_private *)EJS_newraw(arg);
+	ep = (struct ejs_private *)ejs_newraw(arg);
 	AN(ep);
 	ep->url = url;
 
@@ -403,6 +437,62 @@ EJS_free(void *arg)
 	free(ep);
 }
 
+/*----------------------------------------------------------------------*/
+
+static JSBool
+JCL_enumerate(JSContext *cx, JSHandleObject obj)
+{
+
+	return (JS_TRUE);
+}
+
+static JSBool
+JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
+    unsigned int flags, JSMutableHandleObject objp)
+{
+	JSBool ret;
+	void *reqarg;
+
+	if (!JSID_IS_STRING(id))
+		return true;
+	JSAutoByteString name(cx, JSID_TO_STRING(id));
+	if (!name) {
+		JS_ReportOutOfMemory(cx);
+		return false;
+	}
+	if (!strcmp(name.ptr(), "url")) {
+		JSString *valstr;
+
+		reqarg = JS_GetPrivate(obj);
+		AN(reqarg);
+
+		valstr = JS_NewStringCopyZ(cx, REQ_geturl(reqarg));
+		AN(valstr);
+		ret = JS_DefineProperty(cx, obj, name.ptr(),
+		    STRING_TO_JSVAL(valstr), NULL, NULL, 0);
+		if (ret == JS_FALSE)
+			printf("JS_DefineProperty Failed.\n");
+		objp.set(obj);
+	}
+	return (true);
+}
+
+static JSClass jcl_class = {
+	"JCL",
+	JSCLASS_NEW_RESOLVE | JSCLASS_HAS_PRIVATE,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_PropertyStub,
+	JS_StrictPropertyStub,
+	JCL_enumerate,
+	(JSResolveOp)JCL_resolve,
+	JS_ConvertStub,
+	NULL,
+	JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+/*----------------------------------------------------------------------*/
+
 void
 EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
     ssize_t len)
@@ -417,6 +507,36 @@ EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
 	    &rval);
 	if (ret != JS_TRUE)
 		fprintf(stderr, "JS_EvaluateScript() error.\n");
+}
+
+int
+EJS_fetch(void *arg, void *reqarg)
+{
+	struct ejs_private *ep = (struct ejs_private *)arg;
+	JSBool ret;
+	JSObject *obj;
+	jsval args[1], val;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+	obj = JS_NewObject(ep->cx, &jcl_class, NULL, NULL);
+	AN(obj);
+	JS_SetPrivate(obj, reqarg);
+	args[0] = OBJECT_TO_JSVAL(obj);
+	ret = JS_CallFunctionName(ep->cx, ep->global, "fetch", 1, args, &val);
+	JS_SetPrivate(obj, NULL);
+	if (ret == JS_FALSE) {
+		printf("JS_CallFunctionName failed\n");
+		return (-1);
+	}
+	if (!JSVAL_IS_BOOLEAN(val)) {
+		printf("Wrong return type from `fetch' function.\n");
+		return (-1);
+	}
+	ret = JSVAL_TO_BOOLEAN(val);
+	if (ret == JS_FALSE)
+		return (0);
+	return (1);
 }
 
 int

@@ -178,6 +178,15 @@ static int	req_urlnorm(struct req *req, const char *value, char *urlbuf,
 
 /*----------------------------------------------------------------------*/
 
+static void
+JCL_fetch(struct worker *wrk, struct req *req)
+{
+
+	EJS_fetch(wrk->confpriv, (void *)req);
+}
+
+/*----------------------------------------------------------------------*/
+
 static double
 TIM_mono(void)
 {
@@ -747,6 +756,15 @@ SCR_free(struct script *scr)
 	free(scr);
 }
 
+const char *
+REQ_geturl(void *reqarg)
+{
+	struct req *req = reqarg;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	return (req->link->url);
+}
+
 static struct req *
 REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 {
@@ -825,6 +843,8 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 		VTAILQ_REMOVE(&linkchain, lk, chain);
 	}
 	LINK_UNLOCK();
+
+	JCL_fetch(wrk, req);
 
 	return (req);
 }
@@ -1365,7 +1385,7 @@ core_main(void *arg)
 	callout_init(&wrk.co_reqmulti, 0);
 	callout_init(&wrk.co_reqfire, 0);
 	callout_init(&wrk.co_timo, 0);
-	wrk.confpriv = EJS_newraw(&wrk);
+	wrk.confpriv = EJS_newwrk(&wrk);
 
 	callout_reset(&wrk.cb, &wrk.co_reqfire, CALLOUT_SECTOTICKS(1),
 	    REQ_fire, &wrk);
