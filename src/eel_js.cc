@@ -554,28 +554,32 @@ JCL_fetch(void *arg, void *reqarg)
 	JS_SetPrivate(obj, reqarg);
 	args[0] = OBJECT_TO_JSVAL(obj);
 	ret = JS_CallFunctionName(ep->cx, ep->global, "fetch", 1, args, &val);
-	JS_SetPrivate(obj, NULL);
 	if (ret == JS_FALSE) {
 		printf("JS_CallFunctionName failed\n");
+		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	if (!JSVAL_IS_BOOLEAN(val)) {
 		printf("Wrong return type from `fetch' function.\n");
+		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	rval = JSVAL_TO_BOOLEAN(val);
 	ret = JS_GetProperty(ep->cx, obj, "url", &val);
 	if (ret == JS_FALSE) {
 		printf("JS_GetProperty failed\n");
+		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	str = JS_ValueToString(ep->cx, val);
 	if (str == NULL) {
 		printf("JS_ValueToString failed\n");
+		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	JSAutoByteString url(ep->cx, str);
 	RTJ_replaceurl(reqarg, url.ptr());
+	JS_SetPrivate(obj, NULL);
 	if (rval == JS_FALSE)
 		return (0);
 	return (1);
