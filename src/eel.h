@@ -35,10 +35,10 @@ int	RTJ_isjavascript(void *reqarg);
 int	EJS_init(void);
 void *	EJS_newreq(void *confpriv, const char *url, void *arg);
 void *	EJS_newwrk(void *arg);
-int	EJS_fetch(void *arg, void *reqarg);
 void	EJS_free(void *arg);
 void	EJS_eval(void *arg, const char *filename, unsigned int line,
 	    const char *src, ssize_t len);
+int	JCL_fetch(void *arg, void *reqarg);
 
 #ifdef __cplusplus
 }

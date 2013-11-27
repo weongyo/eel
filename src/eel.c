@@ -808,7 +808,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	VTAILQ_INIT(&req->subreqs);
 	VTAILQ_INIT(&req->scripthead);
 
-	ret = EJS_fetch(wrk->confpriv, (void *)req);
+	ret = JCL_fetch(wrk->confpriv, (void *)req);
 	if (ret == 0) {
 		REQ_free(req);
 		return (NULL);

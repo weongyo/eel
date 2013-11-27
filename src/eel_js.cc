@@ -448,6 +448,24 @@ EJS_free(void *arg)
 
 /*----------------------------------------------------------------------*/
 
+void
+EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
+    ssize_t len)
+{
+	struct ejs_private *ep = (struct ejs_private *)arg;
+	JSBool ret;
+	jsval rval;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+	ret = JS_EvaluateScript(ep->cx, ep->global, src, len, filename, line,
+	    &rval);
+	if (ret != JS_TRUE)
+		fprintf(stderr, "JS_EvaluateScript() error.\n");
+}
+
+/*----------------------------------------------------------------------*/
+
 static JSBool
 JCL_enumerate(JSContext *cx, JSHandleObject obj)
 {
@@ -516,26 +534,8 @@ static JSClass jcl_class = {
 	JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
-/*----------------------------------------------------------------------*/
-
-void
-EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
-    ssize_t len)
-{
-	struct ejs_private *ep = (struct ejs_private *)arg;
-	JSBool ret;
-	jsval rval;
-
-	JSAutoRequest ar(ep->cx);
-	JSAutoCompartment ac(ep->cx, ep->global);
-	ret = JS_EvaluateScript(ep->cx, ep->global, src, len, filename, line,
-	    &rval);
-	if (ret != JS_TRUE)
-		fprintf(stderr, "JS_EvaluateScript() error.\n");
-}
-
 int
-EJS_fetch(void *arg, void *reqarg)
+JCL_fetch(void *arg, void *reqarg)
 {
 	struct ejs_private *ep = (struct ejs_private *)arg;
 	JSBool ret;
@@ -563,6 +563,8 @@ EJS_fetch(void *arg, void *reqarg)
 		return (0);
 	return (1);
 }
+
+/*----------------------------------------------------------------------*/
 
 int
 EJS_init(void)
