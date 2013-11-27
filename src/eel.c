@@ -940,6 +940,9 @@ REQ_new_jssrc(struct req *parent, const char *url)
 
 	CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
 
+	if ((parent->flags & REQ_F_ENABLE_JAVASCRIPT) == 0)
+		return;
+
 	lk = LNK_lookup(url, &created);
 	AN(lk);
 	if (created == 0) {

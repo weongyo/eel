@@ -41,7 +41,7 @@
 function fetch(req)
 {
 
-    req.enable_javascript = true;
+    req.enable_javascript = false;
 
     return (true);
 }
