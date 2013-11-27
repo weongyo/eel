@@ -32,6 +32,7 @@ const char *
 	RTJ_geturl(void *reqarg);
 void	RTJ_replaceurl(void *reqarg, const char *newurl);
 int	RTJ_isjavascript(void *reqarg);
+void	RTJ_enable_javascript(void *reqarg, int enable);
 
 /* eel_js.cc */
 int	EJS_init(void);

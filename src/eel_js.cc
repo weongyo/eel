@@ -572,6 +572,15 @@ JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		if (ret == JS_FALSE)
 			printf("JS_DefineProperty Failed.\n");
 		objp.set(obj);
+	} else if (!strcmp(name.ptr(), "enable_javascript")) {
+		JSBool valbool;
+
+		valbool = JS_FALSE;
+		ret = JS_DefineProperty(cx, obj, name.ptr(),
+		    BOOLEAN_TO_JSVAL(valbool), NULL, NULL, 0);
+		if (ret == JS_FALSE)
+			printf("JS_DefineProperty Failed.\n");
+		objp.set(obj);
 	} else if (!strcmp(name.ptr(), "javascript")) {
 		JSBool valbool;
 		int val;
@@ -636,20 +645,40 @@ JCL_fetch(void *arg, void *reqarg)
 		return (-1);
 	}
 	rval = JSVAL_TO_BOOLEAN(val);
-	ret = JS_GetProperty(ep->cx, obj, "url", &val);
-	if (ret == JS_FALSE) {
-		printf("JS_GetProperty failed\n");
-		JS_SetPrivate(obj, NULL);
-		return (-1);
+
+	{
+		ret = JS_GetProperty(ep->cx, obj, "url", &val);
+		if (ret == JS_FALSE) {
+			printf("JS_GetProperty failed\n");
+			JS_SetPrivate(obj, NULL);
+			return (-1);
+		}
+		str = JS_ValueToString(ep->cx, val);
+		if (str == NULL) {
+			printf("JS_ValueToString failed\n");
+			JS_SetPrivate(obj, NULL);
+			return (-1);
+		}
+		JSAutoByteString url(ep->cx, str);
+		RTJ_replaceurl(reqarg, url.ptr());
 	}
-	str = JS_ValueToString(ep->cx, val);
-	if (str == NULL) {
-		printf("JS_ValueToString failed\n");
-		JS_SetPrivate(obj, NULL);
-		return (-1);
+	{
+		JSBool rval2;
+
+		ret = JS_GetProperty(ep->cx, obj, "enable_javascript", &val);
+		if (ret == JS_FALSE) {
+			printf("JS_GetProperty failed\n");
+			JS_SetPrivate(obj, NULL);
+			return (-1);
+		}
+		ret = JS_ValueToBoolean(ep->cx, val, &rval2);
+		if (ret == JS_FALSE) {
+			printf("JS_ValueToBoolean failed\n");
+			JS_SetPrivate(obj, NULL);
+			return (-1);
+		}
+		RTJ_enable_javascript(reqarg, (int)rval2);
 	}
-	JSAutoByteString url(ep->cx, str);
-	RTJ_replaceurl(reqarg, url.ptr());
 	JS_SetPrivate(obj, NULL);
 	if (rval == JS_FALSE)
 		return (0);

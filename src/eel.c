@@ -805,6 +805,18 @@ RTJ_replaceurl(void *reqarg, const char *newurl)
 	AN(req->link);
 }
 
+void
+RTJ_enable_javascript(void *reqarg, int enable)
+{
+	struct req *req = reqarg;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	if (enable)
+		req->flags |= REQ_F_ENABLE_JAVASCRIPT;
+	else
+		req->flags &= ~REQ_F_ENABLE_JAVASCRIPT;
+}
+
 /*----------------------------------------------------------------------*/
 
 static struct req *

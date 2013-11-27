@@ -29,6 +29,10 @@
  * returns `false' it cancels the request.  And the following property is
  * available for testing.
  *
+ *
+ *   req.enable_javascript
+ *			Returns the boolean value for this request whether
+ *			it's JavaScript-enabled or not.  Default is disabled.
  *   req.javascript	Returns true if this request is for fetching
  *			JavaScript source.
  *   req.url		Returns the requesting URL string.
@@ -36,6 +40,8 @@
  */
 function fetch(req)
 {
+
+    req.enable_javascript = true;
 
     return (true);
 }
