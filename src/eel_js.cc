@@ -45,7 +45,8 @@ struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
 	unsigned		flags;
-#define	EJS_PRIVATE_F_RTINHERITED 1
+#define	EJS_PRIVATE_F_RTINHERITED	(1 << 0)
+#define	EJS_PRIVATE_F_CONFLOADED	(1 << 1)
 	const char		*url;
 	void			*arg;
 	JSRuntime		*rt;
@@ -373,6 +374,7 @@ EJS_newwrk(void *arg)
 		if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
 			printf("[ERROR] JS_ExecuteScript() failed.\n");
 		fclose(fp);
+		ep->flags |= EJS_PRIVATE_F_CONFLOADED;
 	} while (0);
 	return ((void *)ep);
 }
@@ -541,6 +543,9 @@ JCL_fetch(void *arg, void *reqarg)
 	JSBool ret;
 	JSObject *obj;
 	jsval args[1], val;
+
+	if ((ep->flags & EJS_PRIVATE_F_CONFLOADED) == 0)
+		return (1);
 
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
