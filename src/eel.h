@@ -33,7 +33,7 @@ int	RTJ_isjavascript(void *reqarg);
 
 /* eel_js.cc */
 int	EJS_init(void);
-void *	EJS_newreq(const char *url, void *arg);
+void *	EJS_newreq(void *confpriv, const char *url, void *arg);
 void *	EJS_newwrk(void *arg);
 int	EJS_fetch(void *arg, void *reqarg);
 void	EJS_free(void *arg);

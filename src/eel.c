@@ -1100,7 +1100,7 @@ req_walktree(struct req *req, GumboNode* node)
 }
 
 static void
-REQ_main(struct req *req)
+REQ_main(struct worker *wrk, struct req *req)
 {
 	struct link *lk;
 	struct vsb *vsb;
@@ -1160,7 +1160,7 @@ REQ_main(struct req *req)
 		if ((lk->flags & LINK_F_JAVASCRIPT) != 0)
 			return;
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_newreq(lk->url, req);
+		req->scriptpriv = EJS_newreq(wrk->confpriv, lk->url, req);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,
@@ -1361,7 +1361,7 @@ core_fetch(struct worker *wrk, int n)
 				    CURLINFO_PRIVATE, &req);
 				assert(code == CURLE_OK);
 				assert(msg->easy_handle == req->c);
-				REQ_main(req);
+				REQ_main(wrk, req);
 				if (req->parent != NULL) {
 					parent = req->parent;
 					CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);

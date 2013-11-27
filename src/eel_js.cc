@@ -44,6 +44,8 @@ static size_t gStackChunkSize = 8192;
 struct ejs_private {
 	unsigned		magic;
 #define	EJS_PRIVATE_MAGIC	0x51a3b032
+	unsigned		flags;
+#define	EJS_PRIVATE_F_RTINHERITED 1
 	const char		*url;
 	void			*arg;
 	JSRuntime		*rt;
@@ -309,7 +311,7 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 }
 
 static void *
-ejs_newraw(void *arg)
+ejs_newraw(struct ejs_private *epconf, void *arg)
 {
 	struct ejs_private *ep;
 	uint32_t oldopts;
@@ -318,7 +320,12 @@ ejs_newraw(void *arg)
 	AN(ep);
 	ep->magic = EJS_PRIVATE_MAGIC;
 	ep->arg = arg;
-	ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
+	if (epconf == NULL)
+		ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
+	else {
+		ep->rt = epconf->rt;
+		ep->flags = EJS_PRIVATE_F_RTINHERITED;
+	}
 	AN(ep->rt);
 	JS_SetGCParameter(ep->rt, JSGC_MAX_BYTES, 0xffffffff);
 	JS_SetNativeStackQuota(ep->rt, gMaxStackSize);
@@ -345,7 +352,7 @@ EJS_newwrk(void *arg)
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/etc/conf.js";
 
-	ep = (struct ejs_private *)ejs_newraw(arg);
+	ep = (struct ejs_private *)ejs_newraw(NULL, arg);
 	AN(ep);
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
@@ -371,9 +378,10 @@ EJS_newwrk(void *arg)
 }
 
 void *
-EJS_newreq(const char *url, void *arg)
+EJS_newreq(void *confpriv, const char *url, void *arg)
 {
 	struct ejs_private *ep;
+	struct ejs_private *epconf = (struct ejs_private *)confpriv;
 	JSBool ret;
 	JSFunction *func;
 	JSObject *envjs;
@@ -382,7 +390,7 @@ EJS_newreq(const char *url, void *arg)
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
-	ep = (struct ejs_private *)ejs_newraw(arg);
+	ep = (struct ejs_private *)ejs_newraw(epconf, arg);
 	AN(ep);
 	ep->url = url;
 
@@ -433,7 +441,8 @@ EJS_free(void *arg)
 	assert(ep->magic == EJS_PRIVATE_MAGIC);
 
 	JS_DestroyContext(ep->cx);
-	JS_DestroyRuntime(ep->rt);
+	if ((ep->flags & EJS_PRIVATE_F_RTINHERITED) == 0)
+		JS_DestroyRuntime(ep->rt);
 	free(ep);
 }
 
