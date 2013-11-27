@@ -173,17 +173,9 @@ struct worker {
 static struct reqmulti *
 		RQM_get(struct worker *wrk);
 static void	RQM_release(struct reqmulti *reqm);
+static void	REQ_free(struct req *req);
 static int	req_urlnorm(struct req *req, const char *value, char *urlbuf,
 		    size_t urlbuflen);
-
-/*----------------------------------------------------------------------*/
-
-static void
-JCL_fetch(struct worker *wrk, struct req *req)
-{
-
-	EJS_fetch(wrk->confpriv, (void *)req);
-}
 
 /*----------------------------------------------------------------------*/
 
@@ -772,6 +764,7 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	struct reqmulti *reqm;
 	CURLcode code;
 	CURLMcode mcode;
+	int ret;
 
 	if (parent != NULL)
 		CHECK_OBJ_NOTNULL(parent, REQ_MAGIC);
@@ -844,8 +837,11 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	}
 	LINK_UNLOCK();
 
-	JCL_fetch(wrk, req);
-
+	ret = EJS_fetch(wrk->confpriv, (void *)req);
+	if (ret == 0) {
+		REQ_free(req);
+		return (NULL);
+	}
 	return (req);
 }
 
@@ -890,7 +886,13 @@ REQ_new_jssrc(struct req *parent, const char *url)
 	}
 	lk->flags |= LINK_F_JAVASCRIPT;
 	req = REQ_new(reqm->wrk, parent, lk);
-	AN(req);
+	if (req == NULL) {
+		/*
+		 * Don't need to release the link reference count because
+		 * it's already released at REQ_new().
+		 */
+		return;
+	}
 	SCR_newreq(parent, req);
 	VTAILQ_INSERT_TAIL(&parent->subreqs, req, subreqs_list);
 	parent->subreqs_onqueue++;
