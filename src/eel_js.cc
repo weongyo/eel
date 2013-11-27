@@ -466,10 +466,24 @@ JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		reqarg = JS_GetPrivate(obj);
 		AN(reqarg);
 
-		valstr = JS_NewStringCopyZ(cx, REQ_geturl(reqarg));
+		valstr = JS_NewStringCopyZ(cx, RTJ_geturl(reqarg));
 		AN(valstr);
 		ret = JS_DefineProperty(cx, obj, name.ptr(),
 		    STRING_TO_JSVAL(valstr), NULL, NULL, 0);
+		if (ret == JS_FALSE)
+			printf("JS_DefineProperty Failed.\n");
+		objp.set(obj);
+	} else if (!strcmp(name.ptr(), "javascript")) {
+		JSBool valbool;
+		int val;
+
+		val = RTJ_isjavascript(reqarg);
+		if (val == 0)
+			valbool = JS_FALSE;
+		else
+			valbool = JS_TRUE;
+		ret = JS_DefineProperty(cx, obj, name.ptr(),
+		    BOOLEAN_TO_JSVAL(valbool), NULL, NULL, 0);
 		if (ret == JS_FALSE)
 			printf("JS_DefineProperty Failed.\n");
 		objp.set(obj);

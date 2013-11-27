@@ -28,7 +28,8 @@ extern "C" {
 struct req;
 void	LNK_newhref(struct req *req, const char *url);
 const char *
-	REQ_geturl(void *reqarg);
+	RTJ_geturl(void *reqarg);
+int	RTJ_isjavascript(void *reqarg);
 
 /* eel_js.cc */
 int	EJS_init(void);

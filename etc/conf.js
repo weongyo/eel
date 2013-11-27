@@ -26,14 +26,22 @@
 
 /*
  * This funcion is called whenever the new request is created.  If this
- * returns `false' it cancels the request.
+ * returns `false' it cancels the request.  And the following property is
+ * available for testing.
+ *
+ *   req.javascript	Returns true if this request is for fetching
+ *			JavaScript source.
+ *   req.url		Returns the requesting URL string.
+ *
  */
 function fetch(req)
 {
-    
-    if (req.url == "http://images.apple.com/global/scripts/lib/prototype.js")
-	return (false);
-    if (req.url == "http://images.apple.com/global/scripts/lib/sizzle.js")
-	return (false);
-    return (true);
+
+    if (req.javascript)
+	return (true);
+
+    var re = new RegExp("^http[s]?:\/\/(.*)moicle\.com", "");
+    if (re.exec(req.url))
+	return (true);
+    return (false);
 }

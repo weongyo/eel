@@ -646,6 +646,9 @@ req_handleheader(struct req *req)
 			return (0);
 		LNK_newhref(req, hdr);
 	}
+	if (!strcmp(req->resp[1], "404"))
+		printf("[WARN] 404 Not fuond (%s)\n", lk->url);
+
 	etag = req_findheader(req, "Etag");
 	if (etag != NULL) {
 		lk->hdr_etag = strdup(etag);
@@ -748,14 +751,29 @@ SCR_free(struct script *scr)
 	free(scr);
 }
 
+/*----------------------------------------------------------------------*/
+
 const char *
-REQ_geturl(void *reqarg)
+RTJ_geturl(void *reqarg)
 {
 	struct req *req = reqarg;
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 	return (req->link->url);
 }
+
+int
+RTJ_isjavascript(void *reqarg)
+{
+	struct req *req = reqarg;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	if ((req->link->flags & LINK_F_JAVASCRIPT) != 0)
+		return (1);
+	return (0);
+}
+
+/*----------------------------------------------------------------------*/
 
 static struct req *
 REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
