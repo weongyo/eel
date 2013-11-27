@@ -844,10 +844,8 @@ NodeList = function(ownerDocument, parentNode) {
 __extend__(NodeList.prototype, {
     item : function(index) {
 	var ret = null;
-	if ((index >= 0) && (index < this.length)) {
+	if ((index >= 0) && (index < this.length))
 	    ret = this[index];
-	}
-	DUMP(ret);
 	return (ret);
     },
     toArray: function () {
