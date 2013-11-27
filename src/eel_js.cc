@@ -539,7 +539,7 @@ int
 JCL_fetch(void *arg, void *reqarg)
 {
 	struct ejsconf *ep = (struct ejsconf *)arg;
-	JSBool ret;
+	JSBool ret, rval;
 	JSObject *obj;
 	JSString *str;
 	jsval args[1], val;
@@ -563,6 +563,7 @@ JCL_fetch(void *arg, void *reqarg)
 		printf("Wrong return type from `fetch' function.\n");
 		return (-1);
 	}
+	rval = JSVAL_TO_BOOLEAN(val);
 	ret = JS_GetProperty(ep->cx, obj, "url", &val);
 	if (ret == JS_FALSE) {
 		printf("JS_GetProperty failed\n");
@@ -575,8 +576,7 @@ JCL_fetch(void *arg, void *reqarg)
 	}
 	JSAutoByteString url(ep->cx, str);
 	RTJ_replaceurl(reqarg, url.ptr());
-	ret = JSVAL_TO_BOOLEAN(val);
-	if (ret == JS_FALSE)
+	if (rval == JS_FALSE)
 		return (0);
 	return (1);
 }
