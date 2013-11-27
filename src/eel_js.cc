@@ -460,11 +460,11 @@ JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		JS_ReportOutOfMemory(cx);
 		return false;
 	}
+	reqarg = JS_GetPrivate(obj);
+	AN(reqarg);
 	if (!strcmp(name.ptr(), "url")) {
 		JSString *valstr;
 
-		reqarg = JS_GetPrivate(obj);
-		AN(reqarg);
 
 		valstr = JS_NewStringCopyZ(cx, RTJ_geturl(reqarg));
 		AN(valstr);
@@ -487,7 +487,9 @@ JCL_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id,
 		if (ret == JS_FALSE)
 			printf("JS_DefineProperty Failed.\n");
 		objp.set(obj);
-	}
+	} else
+		printf("[ERROR] Unknown property %s is requested.\n",
+		    name.ptr());
 	return (true);
 }
 
