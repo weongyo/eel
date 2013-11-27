@@ -789,6 +789,13 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	AN(lk);
 	printf("[INFO] Fetching %s (parent %p)\n", lk->url, parent);
 
+	LINK_LOCK();
+	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
+		lk->flags &= ~LINK_F_ONLINKCHAIN;
+		VTAILQ_REMOVE(&linkchain, lk, chain);
+	}
+	LINK_UNLOCK();
+
 	req = calloc(sizeof(*req), 1);
 	AN(req);
 	req->magic = REQ_MAGIC;
@@ -800,6 +807,13 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	req->parent = parent;
 	VTAILQ_INIT(&req->subreqs);
 	VTAILQ_INIT(&req->scripthead);
+
+	ret = EJS_fetch(wrk->confpriv, (void *)req);
+	if (ret == 0) {
+		REQ_free(req);
+		return (NULL);
+	}
+
 	req->c = curl_easy_init();
 	AN(req->c);
 	code = curl_easy_setopt(req->c, CURLOPT_URL, lk->url);
@@ -848,18 +862,6 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	assert(mcode == CURLM_OK);
 	wrk->n_conns++;
 
-	LINK_LOCK();
-	if ((lk->flags & LINK_F_ONLINKCHAIN) != 0) {
-		lk->flags &= ~LINK_F_ONLINKCHAIN;
-		VTAILQ_REMOVE(&linkchain, lk, chain);
-	}
-	LINK_UNLOCK();
-
-	ret = EJS_fetch(wrk->confpriv, (void *)req);
-	if (ret == 0) {
-		REQ_free(req);
-		return (NULL);
-	}
 	return (req);
 }
 
@@ -926,9 +928,6 @@ REQ_free(struct req *req)
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 	assert(req->subreqs_onqueue == 0);
-	CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
-	CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
-	wrk->n_conns--;
 
 	if (req->goutput != NULL)
 		gumbo_destroy_output(req->goptions, req->goutput);
@@ -937,13 +936,20 @@ REQ_free(struct req *req)
 	VTAILQ_FOREACH(scr, &req->scripthead, list)
 		SCR_free(scr);
 
-	curl_multi_remove_handle(reqm->curlm, req->c);
-	VTAILQ_REMOVE(&reqm->reqhead, req, list);
-	RQM_release(reqm);
+	if (reqm != NULL) {
+		CHECK_OBJ_NOTNULL(reqm, REQMULTI_MAGIC);
+		CAST_OBJ_NOTNULL(wrk, reqm->wrk, WORKER_MAGIC);
+		wrk->n_conns--;
+
+		curl_multi_remove_handle(reqm->curlm, req->c);
+		VTAILQ_REMOVE(&reqm->reqhead, req, list);
+		RQM_release(reqm);
+	}
 
 	if (req->slist != NULL)
 		curl_slist_free_all(req->slist);
-	curl_easy_cleanup(req->c);
+	if (req->c != NULL)
+		curl_easy_cleanup(req->c);
 	VSB_delete(req->body);
 	VSB_delete(req->header);
 	LNK_remref(req->link);
