@@ -524,6 +524,11 @@ EJS_documentAppendChild(void *arg, void *nodearg0, void *nodearg1)
 	JSObject *child = (JSObject *)nodearg1;
 	jsval args[1], val;
 
+	if (parent == NULL) {
+		parent = EJS_getWindowDocument(ep);
+		AN(parent);
+	}
+
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
 

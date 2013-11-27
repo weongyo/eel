@@ -1192,7 +1192,7 @@ REQ_main(struct worker *wrk, struct req *req)
 	assert(code == CURLE_OK);
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
-		void *element;
+		void *element = NULL;
 
 		/*
 		 * Don't need to parse the content if the link flags point
@@ -1208,6 +1208,8 @@ REQ_main(struct worker *wrk, struct req *req)
 		    VSB_data(vsb), VSB_len(vsb));
 		AN(req->goutput);
 		req_walktree(req, req->goutput->root, &element);
+		if (element != NULL)
+			EJS_documentAppendChild(req->scriptpriv, NULL, element);
 	}
 }
 

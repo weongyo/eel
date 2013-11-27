@@ -798,7 +798,7 @@ __extend__(Node.prototype, {
 var $events = [{}];
 
 function __addEventListener__(target, type, fn, phase) {
-    phase = !!phase?"CAPTURING":"BUBBLING";
+    phase = !!phase ? "CAPTURING" : "BUBBLING";
     if (!target.uuid)
         target.uuid = $events.length+'';
     if (!$events[target.uuid])
@@ -1201,6 +1201,13 @@ HTMLBodyElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
+HTMLBRElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLBRElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLDivElement = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
@@ -1256,6 +1263,27 @@ HTMLInputElement.prototype = new HTMLInputAreaCommon();
 
 /*----------------------------------------------------------------------*/
 
+HTMLLIElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLLIElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLLinkElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLLinkElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLMetaElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLMetaElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLOptionElement = function(ownerDocument) {
     HTMLInputCommon.apply(this, arguments);
     this._selected = null;
@@ -1286,6 +1314,13 @@ HTMLSelectElement.prototype = new HTMLTypeValueInputs();
 
 /*----------------------------------------------------------------------*/
 
+HTMLSpanElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLSpanElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
 HTMLTextAreaElement = function(ownerDocument) {
     HTMLInputAreaCommon.apply(this, arguments);
     this._rawvalue = null;
@@ -1298,6 +1333,20 @@ HTMLTitleElement = function(ownerDocument) {
     HTMLElement.apply(this, arguments);
 };
 HTMLTitleElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLUListElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLUListElement.prototype = new HTMLElement();
+
+/*----------------------------------------------------------------------*/
+
+HTMLUnknownElement = function(ownerDocument) {
+    HTMLElement.apply(this, arguments);
+};
+HTMLUnknownElement.prototype = new HTMLElement();
 
 /*----------------------------------------------------------------------*/
 
@@ -1329,14 +1378,29 @@ __extend__(HTMLDocument.prototype, {
         case "BODY":
             node = new HTMLBodyElement(this);
 	    break;
+        case "BR":
+            node = new HTMLBRElement(this);
+	    break;
 	case "HEAD":
 	    node = new HTMLHeadElement(this);
 	    break;
 	case "HTML":
 	    node = new HTMLHtmlElement(this);
 	    break;
+        case "IMG":
+            node = new HTMLImageElement(this);
+	    break;
         case "INPUT":
             node = new HTMLInputElement(this);
+	    break;
+        case "LI":
+            node = new HTMLLIElement(this);
+	    break;
+        case "LINK":
+            node = new HTMLLinkElement(this);
+	    break;
+        case "META":
+            node = new HTMLMetaElement(this);
 	    break;
         case "OPTION":
             node = new HTMLOptionElement(this);
@@ -1344,11 +1408,17 @@ __extend__(HTMLDocument.prototype, {
         case "P":
             node = new HTMLParagraphElement(this);
 	    break;
+	case "SPAN":
+	    node = new HTMLSpanElement(this);
+	    break;
         case "SCRIPT":
             node = new HTMLScriptElement(this);
 	    break;
         case "SELECT":
             node = new HTMLSelectElement(this);
+	    break;
+        case "STRONG":
+            node = new HTMLElement(this);
 	    break;
         case "TEXTAREA":
             node = new HTMLTextAreaElement(this);
@@ -1356,8 +1426,12 @@ __extend__(HTMLDocument.prototype, {
         case "TITLE":
             node = new HTMLTitleElement(this);
 	    break;
+        case "UL":
+            node = new HTMLUListElement(this);
+	    break;
 	default:
-	    DUMP(tagName);
+	    node = new HTMLUnknownElement(this);
+	    break;
 	}
 	node.nodeName  = tagName;
 	return (node);
