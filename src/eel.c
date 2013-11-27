@@ -1132,7 +1132,7 @@ req_walktree(struct req *req, GumboNode *node, void **element0)
 		void *element1 = NULL;
 
 		req_walktree(req, (GumboNode *)children->data[i], &element1);
-		if (element1 != NULL)
+		if (*element0 != NULL && element1 != NULL)
 			EJS_documentAppendChild(req->scriptpriv, *element0,
 			    element1);
 	}
