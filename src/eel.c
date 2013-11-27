@@ -1075,6 +1075,8 @@ req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
 	char urlbuf[BUFSIZ];
 
 	AN(lk);
+	(void)pnode;
+
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
@@ -1128,7 +1130,7 @@ req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
 
 	children = &node->v.element.children;
 	for (i = 0; i < children->length; ++i)
-		req_walktree(req, pnode, (GumboNode *)children->data[i]);
+		req_walktree(req, node, (GumboNode *)children->data[i]);
 }
 
 static void
