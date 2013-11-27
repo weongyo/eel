@@ -626,7 +626,14 @@ var __removeChild__ = function(nodelist, refChildIndex) {
 Node = function(ownerDocument) {
     this.ownerDocument = ownerDocument;
     this.childNodes = new NodeList(ownerDocument, this);
-};
+    this.firstChild      = null;
+    this.lastChild       = null;
+    this.previousSibling = null;
+    this.nextSibling     = null;
+    this.parentNode      = null;
+
+    this.attributes = null;
+ };
 Node.ELEMENT_NODE			= 1;
 Node.ATTRIBUTE_NODE			= 2;
 Node.TEXT_NODE				= 3;
@@ -840,7 +847,11 @@ __extend__(NodeList.prototype, {
         if ((index >= 0) && (index < this.length)) {
             ret = this[index];
         }
+	DUMP(ret);
         return (ret);
+    },
+    toArray: function () {
+	dump("TODO");
     },
 });
 
