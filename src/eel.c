@@ -120,6 +120,7 @@ struct req {
 #define	REQ_MAGIC		0x9ba52f21
 	unsigned		flags;
 #define	REQ_F_PARSEHEADER	(1 << 0)
+#define	REQ_F_ENABLE_JAVASCRIPT	(1 << 1)
 	struct link		*link;
 	CURL			*c;
 	struct curl_slist	*slist;
@@ -708,6 +709,9 @@ SCR_newreq(struct req *req, struct req *newone)
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 	CHECK_OBJ_NOTNULL(newone, REQ_MAGIC);
 
+	if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) == 0)
+		return;
+
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
 	scr->magic = SCRIPT_MAGIC;
@@ -724,6 +728,9 @@ SCR_newbuffer(struct req *req, const char *filename, unsigned int line,
 	struct script *scr;
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+
+	if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) == 0)
+		return;
 
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
@@ -742,6 +749,9 @@ SCR_newlink(struct req *req, struct link *lk)
 	struct script *scr;
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+
+	if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) == 0)
+		return;
 
 	scr = calloc(sizeof(*scr), 1);
 	AN(scr);
@@ -1077,7 +1087,10 @@ req_walktree(struct req *req, GumboNode *node, void **element0)
 	AN(lk);
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
-	*element0 = EJS_documentCreateElement(req->scriptpriv, node);
+	if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) != 0)
+		*element0 = EJS_documentCreateElement(req->scriptpriv, node);
+	else
+		*element0 = NULL;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
 	if (onclick != NULL)
 		printf("[INFO] ONCLICK = %s\n", onclick->value);
@@ -1201,7 +1214,9 @@ REQ_main(struct worker *wrk, struct req *req)
 		if ((lk->flags & LINK_F_JAVASCRIPT) != 0)
 			return;
 		AZ(req->scriptpriv);
-		req->scriptpriv = EJS_newreq(wrk->confpriv, lk->url, req);
+		if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) != 0)
+			req->scriptpriv = EJS_newreq(wrk->confpriv, lk->url,
+			    req);
 		AN(req->scriptpriv);
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,

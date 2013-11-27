@@ -37,12 +37,5 @@
 function fetch(req)
 {
 
-    if (req.javascript) {
-	return (true);
-    }
-
-    var re = new RegExp("^http[s]?:\/\/(.*)moicle\.com", "");
-    if (re.exec(req.url))
-	return (true);
-    return (false);
+    return (true);
 }
