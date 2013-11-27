@@ -1149,10 +1149,24 @@ History = function(owner) {
 
 /*----------------------------------------------------------------------*/
 
+var __toCamelCase__ = function(name) {
+    if (name) {
+        return name.replace(/\-(\w)/g, function(all, letter) {
+            return letter.toUpperCase();
+        });
+    }
+    return name;
+};
+
 CSS2Properties = function(element) {
+    this.type = element.tagName;
+
     return {
 	get backgroundColor() {
 	    return ('rgb(0,0,0)');
+	},
+	getPropertyValue: function(name) {
+	    return (null);
 	},
     };
 };
@@ -1555,6 +1569,9 @@ Window = function(scope, parent, opener) {
 	set document(doc) {
 	    $document = doc;
 	},
+        getComputedStyle: function(element, pseudoElement) {
+            return element.style;
+        },
         get history() {
             return $history;
         },

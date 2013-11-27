@@ -38,8 +38,6 @@ function fetch(req)
 {
 
     if (req.javascript) {
-	if (req.url == "http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js")
-	    req.url = "http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.js";
 	return (true);
     }
 
