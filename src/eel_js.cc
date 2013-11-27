@@ -467,6 +467,38 @@ EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
 		fprintf(stderr, "JS_EvaluateScript() error.\n");
 }
 
+void *
+EJS_documentCreateElement(void *arg, void *nodearg)
+{
+	struct ejsconf *ep = (struct ejsconf *)arg;
+	GumboNode *node = (GumboNode *)nodearg;
+	JSBool ret;
+	JSString *str;
+	jsval args[1], val;
+	const char *name;
+
+	JSAutoRequest ar(ep->cx);
+	JSAutoCompartment ac(ep->cx, ep->global);
+
+	ret = JS_GetProperty(ep->cx, ep->global, "window", &val);
+	assert(ret == JS_TRUE);
+	assert(!JSVAL_IS_PRIMITIVE(val));
+	ret = JS_GetProperty(ep->cx, JSVAL_TO_OBJECT(val), "document", &val);
+	assert(ret == JS_TRUE);
+	assert(!JSVAL_IS_PRIMITIVE(val));
+	name = gumbo_normalized_tagname(node->v.element.tag);
+	AN(name);
+	str = JS_NewStringCopyZ(ep->cx, name);
+	AN(str);
+	args[0] = STRING_TO_JSVAL(str);
+	ret = JS_CallFunctionName(ep->cx, JSVAL_TO_OBJECT(val), "createElement",
+	    1, args, &val);
+	if (ret == JS_FALSE)
+		return (NULL);
+	assert(!JSVAL_IS_PRIMITIVE(val));
+	return (JSVAL_TO_OBJECT(val));
+}
+
 /*----------------------------------------------------------------------*/
 
 static JSBool

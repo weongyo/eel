@@ -40,6 +40,7 @@ void *	EJS_newwrk(void *arg);
 void	EJS_free(void *arg);
 void	EJS_eval(void *arg, const char *filename, unsigned int line,
 	    const char *src, ssize_t len);
+void *	EJS_documentCreateElement(void *arg, void *nodearg);
 int	JCL_fetch(void *arg, void *reqarg);
 
 #ifdef __cplusplus

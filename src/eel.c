@@ -1065,7 +1065,7 @@ fail0:
 }
 
 static void
-req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
+req_walktree(struct req *req, GumboNode *node, void **element0)
 {
 	struct link *lk = req->link;
 	GumboAttribute *href, *onclick, *src, *type;
@@ -1075,10 +1075,9 @@ req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
 	char urlbuf[BUFSIZ];
 
 	AN(lk);
-	(void)pnode;
-
 	if (node->type != GUMBO_NODE_ELEMENT)
 		return;
+	*element0 = EJS_documentCreateElement(req->scriptpriv, node);
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
 	if (onclick != NULL)
 		printf("[INFO] ONCLICK = %s\n", onclick->value);
@@ -1129,8 +1128,11 @@ req_walktree(struct req *req, GumboNode *pnode, GumboNode *node)
 	}
 
 	children = &node->v.element.children;
-	for (i = 0; i < children->length; ++i)
-		req_walktree(req, node, (GumboNode *)children->data[i]);
+	for (i = 0; i < children->length; ++i) {
+		void *element1;
+
+		req_walktree(req, (GumboNode *)children->data[i], &element1);
+	}
 }
 
 static void
@@ -1187,6 +1189,8 @@ REQ_main(struct worker *wrk, struct req *req)
 	assert(code == CURLE_OK);
 
 	if (content_type == NULL || strcasestr(content_type, "text/html")) {
+		void *element;
+
 		/*
 		 * Don't need to parse the content if the link flags point
 		 * it's javascript assumed.
@@ -1200,7 +1204,7 @@ REQ_main(struct worker *wrk, struct req *req)
 		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));
 		AN(req->goutput);
-		req_walktree(req, NULL, req->goutput->root);
+		req_walktree(req, req->goutput->root, &element);
 	}
 }
 
