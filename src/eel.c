@@ -1214,10 +1214,11 @@ REQ_main(struct worker *wrk, struct req *req)
 		if ((lk->flags & LINK_F_JAVASCRIPT) != 0)
 			return;
 		AZ(req->scriptpriv);
-		if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) != 0)
+		if ((req->flags & REQ_F_ENABLE_JAVASCRIPT) != 0) {
 			req->scriptpriv = EJS_newreq(wrk->confpriv, lk->url,
 			    req);
-		AN(req->scriptpriv);
+			AN(req->scriptpriv);
+		}
 		req->goptions = &kGumboDefaultOptions;
 		req->goutput = gumbo_parse_with_options(req->goptions,
 		    VSB_data(vsb), VSB_len(vsb));
