@@ -41,12 +41,12 @@ static size_t gMaxStackSize = DEFAULT_MAX_STACK_SIZE;
 static unsigned gStackBaseThreadIndex;
 static size_t gStackChunkSize = 8192;
 
-struct ejs_private {
+struct ejsconf {
 	unsigned		magic;
-#define	EJS_PRIVATE_MAGIC	0x51a3b032
+#define	EJSCONF_MAGIC		0x51a3b032
 	unsigned		flags;
-#define	EJS_PRIVATE_F_RTINHERITED	(1 << 0)
-#define	EJS_PRIVATE_F_CONFLOADED	(1 << 1)
+#define	EJSCONF_F_RTINHERITED	(1 << 0)
+#define	EJSCONF_F_CONFLOADED	(1 << 1)
 	const char		*url;
 	void			*arg;
 	JSRuntime		*rt;
@@ -276,10 +276,10 @@ TIM_real(void)
 static JSBool
 envjs_getURL(JSContext *cx, unsigned int argc, jsval *vp)
 {
-	struct ejs_private *ep;
+	struct ejsconf *ep;
 	JSString *val;
 
-	ep = (struct ejs_private *)JS_GetContextPrivate(cx);
+	ep = (struct ejsconf *)JS_GetContextPrivate(cx);
 	AN(ep);
 	val = JS_NewStringCopyZ(cx, ep->url);
 	AN(val);
@@ -290,7 +290,7 @@ envjs_getURL(JSContext *cx, unsigned int argc, jsval *vp)
 static JSBool
 envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 {
-	struct ejs_private *ep;
+	struct ejsconf *ep;
 	JSString *str;
 	jsval *argv = JS_ARGV(cx, vp);
 
@@ -299,8 +299,8 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 		JS_ReportError(cx, "Invalid arguments to ENVJS.collectURL.");
 		return (JS_FALSE);
 	}
-	CAST_OBJ_NOTNULL(ep, (struct ejs_private *)JS_GetContextPrivate(cx),
-	    EJS_PRIVATE_MAGIC);
+	CAST_OBJ_NOTNULL(ep, (struct ejsconf *)JS_GetContextPrivate(cx),
+	    EJSCONF_MAGIC);
 
 	str = JSVAL_TO_STRING(argv[0]);
 	AN(str);
@@ -312,20 +312,20 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 }
 
 static void *
-ejs_newraw(struct ejs_private *epconf, void *arg)
+ejs_newraw(struct ejsconf *epconf, void *arg)
 {
-	struct ejs_private *ep;
+	struct ejsconf *ep;
 	uint32_t oldopts;
 
-	ep = (struct ejs_private *)calloc(sizeof(*ep), 1);
+	ep = (struct ejsconf *)calloc(sizeof(*ep), 1);
 	AN(ep);
-	ep->magic = EJS_PRIVATE_MAGIC;
+	ep->magic = EJSCONF_MAGIC;
 	ep->arg = arg;
 	if (epconf == NULL)
 		ep->rt = JS_NewRuntime(32L * 1024L * 1024L);
 	else {
 		ep->rt = epconf->rt;
-		ep->flags = EJS_PRIVATE_F_RTINHERITED;
+		ep->flags = EJSCONF_F_RTINHERITED;
 	}
 	AN(ep->rt);
 	JS_SetGCParameter(ep->rt, JSGC_MAX_BYTES, 0xffffffff);
@@ -348,12 +348,12 @@ ejs_newraw(struct ejs_private *epconf, void *arg)
 void *
 EJS_newwrk(void *arg)
 {
-	struct ejs_private *ep;
+	struct ejsconf *ep;
 	JSScript *script;
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/etc/conf.js";
 
-	ep = (struct ejs_private *)ejs_newraw(NULL, arg);
+	ep = (struct ejsconf *)ejs_newraw(NULL, arg);
 	AN(ep);
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
@@ -374,7 +374,7 @@ EJS_newwrk(void *arg)
 		if (!JS_ExecuteScript(ep->cx, ep->global, script, NULL))
 			printf("[ERROR] JS_ExecuteScript() failed.\n");
 		fclose(fp);
-		ep->flags |= EJS_PRIVATE_F_CONFLOADED;
+		ep->flags |= EJSCONF_F_CONFLOADED;
 	} while (0);
 	return ((void *)ep);
 }
@@ -382,8 +382,8 @@ EJS_newwrk(void *arg)
 void *
 EJS_newreq(void *confpriv, const char *url, void *arg)
 {
-	struct ejs_private *ep;
-	struct ejs_private *epconf = (struct ejs_private *)confpriv;
+	struct ejsconf *ep;
+	struct ejsconf *epconf = (struct ejsconf *)confpriv;
 	JSBool ret;
 	JSFunction *func;
 	JSObject *envjs;
@@ -392,7 +392,7 @@ EJS_newreq(void *confpriv, const char *url, void *arg)
 	uint32_t oldopts;
 	const char *filename = "/opt/eel/" PACKAGE_VERSION "/share/dom.js";
 
-	ep = (struct ejs_private *)ejs_newraw(epconf, arg);
+	ep = (struct ejsconf *)ejs_newraw(epconf, arg);
 	AN(ep);
 	ep->url = url;
 
@@ -438,12 +438,12 @@ EJS_newreq(void *confpriv, const char *url, void *arg)
 void
 EJS_free(void *arg)
 {
-	struct ejs_private *ep = (struct ejs_private *)arg;
+	struct ejsconf *ep = (struct ejsconf *)arg;
 
-	assert(ep->magic == EJS_PRIVATE_MAGIC);
+	assert(ep->magic == EJSCONF_MAGIC);
 
 	JS_DestroyContext(ep->cx);
-	if ((ep->flags & EJS_PRIVATE_F_RTINHERITED) == 0)
+	if ((ep->flags & EJSCONF_F_RTINHERITED) == 0)
 		JS_DestroyRuntime(ep->rt);
 	free(ep);
 }
@@ -454,7 +454,7 @@ void
 EJS_eval(void *arg, const char *filename, unsigned int line, const char *src,
     ssize_t len)
 {
-	struct ejs_private *ep = (struct ejs_private *)arg;
+	struct ejsconf *ep = (struct ejsconf *)arg;
 	JSBool ret;
 	jsval rval;
 
@@ -539,12 +539,12 @@ static JSClass jcl_class = {
 int
 JCL_fetch(void *arg, void *reqarg)
 {
-	struct ejs_private *ep = (struct ejs_private *)arg;
+	struct ejsconf *ep = (struct ejsconf *)arg;
 	JSBool ret;
 	JSObject *obj;
 	jsval args[1], val;
 
-	if ((ep->flags & EJS_PRIVATE_F_CONFLOADED) == 0)
+	if ((ep->flags & EJSCONF_F_CONFLOADED) == 0)
 		return (1);
 
 	JSAutoRequest ar(ep->cx);
