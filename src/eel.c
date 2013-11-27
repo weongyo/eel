@@ -176,6 +176,8 @@ static void	RQM_release(struct reqmulti *reqm);
 static void	REQ_free(struct req *req);
 static int	req_urlnorm(struct req *req, const char *value, char *urlbuf,
 		    size_t urlbuflen);
+static void	SCR_newbuffer(struct req *req, const char *filename,
+		    unsigned int line, const char *buf);
 
 /*----------------------------------------------------------------------*/
 
@@ -295,7 +297,7 @@ LNK_lookup(const char *url, int *created)
 }
 
 void
-LNK_newhref(struct req *req, const char *url)
+LNK_newhref(struct req *req, const char *filename, int line, const char *url)
 {
 	struct link *lk;
 	int created;
@@ -303,6 +305,12 @@ LNK_newhref(struct req *req, const char *url)
 	char urlbuf[BUFSIZ];
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+
+	if (!strncasecmp(url, "javascript:", sizeof("javascript:") - 1)) {
+		SCR_newbuffer(req, filename, line, url + sizeof("javascript:")
+		    - 1);
+		return;
+	}
 
 	ret = req_urlnorm(req, url, urlbuf, sizeof(urlbuf));
 	if (ret == -1) {
@@ -644,7 +652,7 @@ req_handleheader(struct req *req)
 		hdr = req_findheader(req, "Location");
 		if (hdr == NULL)
 			return (0);
-		LNK_newhref(req, hdr);
+		LNK_newhref(req, lk->url, -1, hdr);
 	}
 	if (!strcmp(req->resp[1], "404"))
 		printf("[WARN] 404 Not fuond (%s)\n", lk->url);
@@ -1076,7 +1084,8 @@ req_walktree(struct req *req, GumboNode* node)
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
 		if (href != NULL) {
-			LNK_newhref(req, href->value);
+			LNK_newhref(req, lk->url, href->value_start.line,
+			    href->value);
 			break;
 		}
 		break;

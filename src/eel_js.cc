@@ -305,7 +305,7 @@ envjs_collectURL(JSContext *cx, unsigned int argc, jsval *vp)
 	str = JSVAL_TO_STRING(argv[0]);
 	AN(str);
 	JSAutoByteString url(cx, str);
-	LNK_newhref((struct req *)ep->arg, url.ptr());
+	LNK_newhref((struct req *)ep->arg, NULL, -1, url.ptr());
 
 	JS_SET_RVAL(cx, vp, JSVAL_VOID);
 	return JS_TRUE;

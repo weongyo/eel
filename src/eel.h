@@ -26,7 +26,8 @@ extern "C" {
 
 /* eel.c */
 struct req;
-void	LNK_newhref(struct req *req, const char *url);
+void	LNK_newhref(struct req *req, const char *file, int line,
+	    const char *url);
 const char *
 	RTJ_geturl(void *reqarg);
 void	RTJ_replaceurl(void *reqarg, const char *newurl);
