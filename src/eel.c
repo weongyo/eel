@@ -856,7 +856,8 @@ REQ_new(struct worker *wrk, struct req *parent, struct link *lk)
 	}
 
 	req->reqm = reqm = RQM_get(wrk);
-	AN(req->reqm);
+	AN(reqm);
+	assert(reqm->wrk == wrk);
 	VTAILQ_INSERT_TAIL(&reqm->reqhead, req, list);
 	mcode = curl_multi_add_handle(reqm->curlm, req->c);
 	assert(mcode == CURLM_OK);
