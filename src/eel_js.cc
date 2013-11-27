@@ -600,6 +600,5 @@ EJS_init(void)
 	ret = PR_SetThreadPrivate(gStackBaseThreadIndex, &stackDummy);
 	if (ret == PR_FAILURE)
 		return (-1);
-	JS_SetCStringsAreUTF8();
 	return (0);
 }
