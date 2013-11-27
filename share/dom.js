@@ -863,6 +863,9 @@ Attr = function(ownerDocument) {
 };
 Attr.prototype = new Node();
 __extend__(Attr.prototype, {
+    get nodeType(){
+        return Node.ATTRIBUTE_NODE;
+    },
 });
 
 /*----------------------------------------------------------------------*/
@@ -1065,6 +1068,9 @@ __extend__(Element.prototype, {
 	if (attr)
 	    ret = attr.value;
 	return (ret);
+    },
+    get nodeType(){
+        return Node.ELEMENT_NODE;
     },
     setAttribute: function (name, value) {
 	var attr = this.attributes.getNamedItem(name);
