@@ -41,7 +41,7 @@ function fetch(req)
 	return (true);
     }
 
-    var re = new RegExp("^http[s]?:\/\/forums.loxch\.com", "");
+    var re = new RegExp("^http[s]?:\/\/(.*)moicle\.com", "");
     if (re.exec(req.url))
 	return (true);
     return (false);
