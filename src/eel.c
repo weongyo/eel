@@ -1016,23 +1016,30 @@ req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	UriUriA relativeSource;
 	int charsRequired;
 	int error = 0;
+	int targetlen;
 	char *anchor;
-	const char *target = value;
-	char *newvalue;
+	char *target;
+	char *newvalue, *p;
 
 	AN(lk);
+	newvalue = strdup(value);
+	AN(newvalue);
+
 	/*
 	 * Removes '#' anchor marker because it doesn't be pointing the new
 	 * URL.
 	 */
-	anchor = strrchr(value, '#');
-	if (anchor != NULL) {
-		newvalue = strdup(value);
-		AN(newvalue);
-		anchor = strrchr(newvalue, '#');
-		AN(anchor);
+	anchor = strrchr(newvalue, '#');
+	if (anchor != NULL)
 		*anchor = '\0';
-		target = newvalue;
+	target = newvalue;
+	while (vct_issp(*target))
+		target++;
+	targetlen = strlen(target);
+	p = target + targetlen;
+	while (p - 1 >= target && vct_issp(p[-1])) {
+		p[-1] = '\0';
+		p--;
 	}
 
 	/*
@@ -1046,7 +1053,7 @@ req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	}
 	state.uri = &relativeSource;
 	if (uriParseUriA(&state, target) != URI_SUCCESS) {
-		printf("[ERROR] Failed to parse target URL %s\n", target);
+		printf("[ERROR] Failed to parse target URL '%s'\n", target);
 		error = -1;
 		goto fail1;
 	}
@@ -1084,8 +1091,7 @@ fail1:
 	uriFreeUriMembersA(&relativeSource);
 fail0:
 	uriFreeUriMembersA(&absoluteBase);
-	if (target != value)
-		free(newvalue);
+	free(newvalue);
 	return (error);
 }
 
