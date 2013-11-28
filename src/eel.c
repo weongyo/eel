@@ -1040,13 +1040,13 @@ req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	 */
 	state.uri = &absoluteBase;
 	if (uriParseUriA(&state, lk->url) != URI_SUCCESS) {
-		printf("[ERROR] Failed to parse URL %s\n", lk->url);
+		printf("[ERROR] Failed to parse source URL %s\n", lk->url);
 		error = -1;
 		goto fail0;
 	}
 	state.uri = &relativeSource;
 	if (uriParseUriA(&state, target) != URI_SUCCESS) {
-		printf("[ERROR] Failed to parse URL %s\n", target);
+		printf("[ERROR] Failed to parse target URL %s\n", target);
 		error = -1;
 		goto fail1;
 	}
