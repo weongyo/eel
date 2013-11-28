@@ -315,7 +315,7 @@ LNK_newhref(struct req *req, const char *filename, int line, const char *url)
 
 	ret = req_urlnorm(req, url, urlbuf, sizeof(urlbuf));
 	if (ret == -1) {
-		printf("Failed to normalize URL.\n");
+		printf("[ERROR] Failed to normalize URL.\n");
 		return;
 	}
 	if (strncasecmp(urlbuf, "http", 4))
@@ -1040,31 +1040,31 @@ req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 	 */
 	state.uri = &absoluteBase;
 	if (uriParseUriA(&state, lk->url) != URI_SUCCESS) {
-		printf("Failed to parse URL %s\n", lk->url);
+		printf("[ERROR] Failed to parse URL %s\n", lk->url);
 		error = -1;
 		goto fail0;
 	}
 	state.uri = &relativeSource;
 	if (uriParseUriA(&state, target) != URI_SUCCESS) {
-		printf("Failed to parse URL %s\n", target);
+		printf("[ERROR] Failed to parse URL %s\n", target);
 		error = -1;
 		goto fail1;
 	}
 	if (uriAddBaseUriA(&absoluteDest, &relativeSource, &absoluteBase) !=
 	    URI_SUCCESS) {
-		printf("Failed to call uriAddBaseUriA().\n");
+		printf("[ERROR] Failed to call uriAddBaseUriA().\n");
 		error = -1;
 		goto fail2;
 	}
 	if (uriNormalizeSyntaxA(&absoluteDest) != URI_SUCCESS) {
-		printf("Failed to call uriNormalizeSyntaxA().\n");
+		printf("[ERROR] Failed to call uriNormalizeSyntaxA().\n");
 		error = -1;
 		goto fail2;
 	}
 	charsRequired = -1;
 	if (uriToStringCharsRequiredA(&absoluteDest, &charsRequired) !=
 	    URI_SUCCESS) {
-		printf("Failed to call uriToStringCharsRequiredA().\n");
+		printf("[ERROR] Failed to call uriToStringCharsRequiredA().\n");
 		error = -1;
 		goto fail2;
 	}
@@ -1073,7 +1073,7 @@ req_urlnorm(struct req *req, const char *value, char *urlbuf, size_t urlbuflen)
 
 		if (uriToStringA(urlbuf, &absoluteDest, urlbuflen, NULL) !=
 		    URI_SUCCESS) {
-			printf("Failed to call uriToStringA().\n");
+			printf("[ERROR] Failed to call uriToStringA().\n");
 			error = -1;
 			goto fail2;
 		}
