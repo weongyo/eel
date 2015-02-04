@@ -171,6 +171,9 @@ struct worker {
 	void			*confpriv;
 };
 
+static int	verbose;
+const char *f_arg = "/opt/eel/" PACKAGE_VERSION "/etc/conf.js";
+
 static struct reqmulti *
 		RQM_get(struct worker *wrk);
 static void	RQM_release(struct reqmulti *reqm);
@@ -321,7 +324,8 @@ LNK_newhref(struct req *req, const char *filename, int line, const char *url)
 	if (strncasecmp(urlbuf, "http", 4))
 		return;
 	if (n_links > 100) {
-		printf("[INFO] Skipping %s due to limits\n", urlbuf);
+		if (verbose)
+			printf("[INFO] Skipping %s due to limits\n", urlbuf);
 		return;
 	}
 
@@ -1115,8 +1119,11 @@ req_walktree(struct req *req, GumboNode *node, void **element0)
 	else
 		*element0 = NULL;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
-	if (onclick != NULL)
-		printf("[INFO] ONCLICK (skipped) = %s\n", onclick->value);
+	if (onclick != NULL) {
+		if (verbose)
+			printf("[INFO] ONCLICK (skipped) = %s\n",
+			    onclick->value);
+	}
 	switch (node->v.element.tag) {
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
@@ -1521,14 +1528,40 @@ core_main(void *arg)
 	return (NULL);
 }
 
+static void
+usage(void)
+{
+#define FMT "    %-28s # %s\n"
+
+	fprintf(stderr, "usage: eel [options]\n");
+	fprintf(stderr, FMT, "-v", "Increase the verbose level.");
+	exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
 	pthread_t tid;
-	int i, ret;
+	int i, o, ret;
 
-	if (argc > 1)
-		starturl = argv[1];
+	while ((o = getopt(argc, argv, "f:v")) != -1)
+		switch (o) {
+		case 'f':
+			f_arg = optarg;
+			break;
+		case 'v':
+			verbose++;
+			break;
+		default:
+			usage();
+		}
+	argc -= optind;
+	argv += optind;
+	if (argc <= 0) {
+		printf("[ERROR] URL is required.\n");
+		exit(1);
+	}
+	starturl = argv[0];
 
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();

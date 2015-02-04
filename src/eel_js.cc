@@ -346,13 +346,14 @@ ejs_newraw(struct ejsconf *epconf, void *arg)
 	return ((void *)ep);
 }
 
+extern const char *f_arg;
+
 void *
 EJS_newwrk(void *arg)
 {
 	struct ejsconf *ep;
 	JSScript *script;
 	uint32_t oldopts;
-	const char *filename = "/opt/eel/" PACKAGE_VERSION "/etc/conf.js";
 
 	ep = (struct ejsconf *)ejs_newraw(NULL, arg);
 	AN(ep);
@@ -361,14 +362,14 @@ EJS_newwrk(void *arg)
 	do {
 		FILE *fp;
 
-		fp = fopen(filename, "r");
+		fp = fopen(f_arg, "r");
 		if (fp == NULL)
 			break;
 		AN(fp);
 		oldopts = JS_GetOptions(ep->cx);
 		JS_SetOptions(ep->cx, oldopts | JSOPTION_COMPILE_N_GO |
 		    JSOPTION_NO_SCRIPT_RVAL);
-		script = JS_CompileUTF8FileHandle(ep->cx, ep->global, filename,
+		script = JS_CompileUTF8FileHandle(ep->cx, ep->global, f_arg,
 		    fp);
 		AN(script);
 		JS_SetOptions(ep->cx, oldopts);
@@ -635,17 +636,16 @@ JCL_fetch(void *arg, void *reqarg)
 	args[0] = OBJECT_TO_JSVAL(obj);
 	ret = JS_CallFunctionName(ep->cx, ep->global, "fetch", 1, args, &val);
 	if (ret == JS_FALSE) {
-		printf("JS_CallFunctionName failed\n");
+		printf("[ERROR] JS_CallFunctionName failed\n");
 		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	if (!JSVAL_IS_BOOLEAN(val)) {
-		printf("Wrong return type from `fetch' function.\n");
+		printf("[ERROR] Wrong return type from `fetch' function.\n");
 		JS_SetPrivate(obj, NULL);
 		return (-1);
 	}
 	rval = JSVAL_TO_BOOLEAN(val);
-
 	{
 		ret = JS_GetProperty(ep->cx, obj, "url", &val);
 		if (ret == JS_FALSE) {
