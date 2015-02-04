@@ -1534,6 +1534,7 @@ usage(void)
 #define FMT "    %-28s # %s\n"
 
 	fprintf(stderr, "usage: eel [options]\n");
+	fprintf(stderr, FMT, "-f <file>", "Set the filter.");
 	fprintf(stderr, FMT, "-v", "Increase the verbose level.");
 	exit(1);
 }
