@@ -320,8 +320,10 @@ LNK_newhref(struct req *req, const char *filename, int line, const char *url)
 	}
 	if (strncasecmp(urlbuf, "http", 4))
 		return;
-	if (n_links > 100)
+	if (n_links > 100) {
+		printf("[INFO] Skipping %s due to limits\n", urlbuf);
 		return;
+	}
 
 	lk = LNK_lookup(urlbuf, &created);
 	AN(lk);
@@ -1114,7 +1116,7 @@ req_walktree(struct req *req, GumboNode *node, void **element0)
 		*element0 = NULL;
 	onclick = gumbo_get_attribute(&node->v.element.attributes, "onclick");
 	if (onclick != NULL)
-		printf("[INFO] ONCLICK = %s\n", onclick->value);
+		printf("[INFO] ONCLICK (skipped) = %s\n", onclick->value);
 	switch (node->v.element.tag) {
 	case GUMBO_TAG_A:
 		href = gumbo_get_attribute(&node->v.element.attributes, "href");
@@ -1310,7 +1312,8 @@ REQ_fire(void *arg)
 	struct worker *wrk = (struct worker *)arg;
 	int i;
 
-	printf("[INFO] REQFIRE n_links %d n_conns %d\n", n_links, wrk->n_conns);
+	printf("[INFO] WRK %p REQ_FIRE n_links %d n_conns %d\n", wrk, n_links,
+	    wrk->n_conns);
 
 	if (wrk->n_conns < 10) {
 		for (i = 0; i < 10; i++) {
