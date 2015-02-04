@@ -20,6 +20,7 @@ AC_ARG_ENABLE(debugging-symbols,
 
 AC_CONFIG_FILES([
     Makefile
+    etc/Makefile
     src/Makefile
 ])
 AC_OUTPUT

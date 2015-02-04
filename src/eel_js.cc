@@ -358,7 +358,7 @@ EJS_newwrk(void *arg)
 	AN(ep);
 	JSAutoRequest ar(ep->cx);
 	JSAutoCompartment ac(ep->cx, ep->global);
-	do {
+	{
 		FILE *fp;
 
 		fp = fopen(filename, "r");
@@ -376,7 +376,7 @@ EJS_newwrk(void *arg)
 			printf("[ERROR] JS_ExecuteScript() failed.\n");
 		fclose(fp);
 		ep->flags |= EJSCONF_F_CONFLOADED;
-	} while (0);
+	}
 	return ((void *)ep);
 }
 
