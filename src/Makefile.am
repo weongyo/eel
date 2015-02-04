@@ -22,4 +22,4 @@ eel_CXXFLAGS = -I$(prefix)/include -I$(prefix)/include/nspr \
 
 eel_LDFLAGS = -L$(prefix)/lib
 
-eel_LDADD = -lcurl -lgumbo -lmozjs-17.0 -lnspr4 -luriparser
+eel_LDADD = -lcurl -lgumbo -lmozjs-17.0 -lnspr4 -luriparser -lcrypto -lpthread
