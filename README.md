@@ -3,7 +3,7 @@
 ```
 # sh autogen.sh
 # sh build_vendor.sh
-# ./configure
+# ./configure --enable-debugging-symbols
 # src/eel <URL>
 ```
 
