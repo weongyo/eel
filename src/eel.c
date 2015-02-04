@@ -227,7 +227,7 @@ lnk_init(int elements, u_long *hashmask)
 }
 
 static void
-LNK_start(void)
+LNK_init(void)
 {
 
 	LINK_LOCK_INIT();
@@ -1512,7 +1512,6 @@ core_main(void *arg)
 				 */
 				continue;
 			}
-
 			mcode = curl_multi_socket_action(sp->reqm->curlm,
 			    sp->fd, 0, &running_handles);
 			assert(mcode == CURLM_OK);
@@ -1534,7 +1533,7 @@ main(int argc, char *argv[])
 	curl_global_init(CURL_GLOBAL_ALL);
 	init_locks();
 	EJS_init();
-	LNK_start();
+	LNK_init();
 
 	for (i = 0; i < 1; i++) {
 		ret = pthread_create(&tid, NULL, core_main, NULL);
