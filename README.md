@@ -4,6 +4,7 @@
 # sh autogen.sh
 # sh build_vendor.sh
 # ./configure --enable-debugging-symbols
-# src/eel <URL>
+# make && make install
+# /opt/eel/<version>/bin/eel <URL>
 ```
 
