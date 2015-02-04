@@ -1560,7 +1560,7 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (argc <= 0) {
 		printf("[ERROR] URL is required.\n");
-		exit(1);
+		usage();
 	}
 	starturl = argv[0];
 
